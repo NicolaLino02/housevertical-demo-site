@@ -28,13 +28,14 @@ export interface PropertyDetails {
 export interface DetailItem {
   label: string;
   value: string | number;
+  explanation: string; // Added for deep-dive modals
 }
 
 export interface SectionData {
   title: string;
   summary: string;
   score: number; // 0-10
-  details: DetailItem[]; // Changed from Record<string, string|number> to Array to fix Schema issues
+  details: DetailItem[]; 
   recommendation: string;
 }
 

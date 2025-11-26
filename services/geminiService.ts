@@ -13,84 +13,130 @@ export const generateReport = async (
 
   const ai = new GoogleGenAI({ apiKey });
 
-  // Schema per un singolo dettaglio (Label + Value)
+  // --- SCHEMA DEFINITION (Identico per compatibilità UI) ---
   const detailItemSchema = {
     type: Type.OBJECT,
     properties: {
-      label: { type: Type.STRING, description: "Nome del dato (es. 'Canone Mensile', 'Rischio Alluvioni')" },
-      value: { type: Type.STRING, description: "Valore del dato (es. '1.200 €', 'Basso', '1.5km')" }
+      label: { type: Type.STRING },
+      value: { type: Type.STRING },
+      explanation: { type: Type.STRING }
     },
-    required: ["label", "value"]
+    required: ["label", "value", "explanation"]
   };
 
   const sectionSchema = {
     type: Type.OBJECT,
     properties: {
       title: { type: Type.STRING },
-      summary: { type: Type.STRING, description: "Analisi discorsiva dettagliata e professionale (min 40 parole)." },
-      score: { type: Type.NUMBER, description: "Punteggio da 1 a 10" },
+      summary: { type: Type.STRING },
+      score: { type: Type.NUMBER },
       details: { 
         type: Type.ARRAY, 
-        items: detailItemSchema,
-        description: "Lista di almeno 5-6 metriche specifiche e numeriche per questa sezione."
+        items: detailItemSchema
       },
-      recommendation: { type: Type.STRING, description: "Consiglio operativo strategico." },
+      recommendation: { type: Type.STRING },
     },
     required: ["title", "summary", "score", "details", "recommendation"]
   };
 
-  const prompt = `
-    Sei House Vertical AI, il più avanzato analista immobiliare italiano.
-    
-    OBIETTIVO:
-    Generare un report immobiliare dettagliato, critico e realistico per l'indirizzo fornito.
-    Devi simulare un'analisi di mercato reale. Sii specifico sui numeri.
+  // --- NUOVA LOGICA DI PROMPT "MARKET LISTING SIMULATION" ---
 
-    INPUT DATI IMMOBILE:
-    - Indirizzo: ${address.display_name}
-    - Tipo: ${details.type}
-    - Mq: ${details.sqm}
+  const propertyContext = `
+    TARGET IMMOBILE:
+    - Indirizzo Completo: ${address.display_name}
+    - Coordinate: ${address.lat}, ${address.lon} (Usa queste per la micro-zona esatta)
+    - Tipologia: ${details.type.toUpperCase()}
+    - Superficie: ${details.sqm} mq
     - Piano: ${details.floor}
-    - Stato: ${details.renovationStatus}
+    - Condizioni Dichiarate: ${details.renovationStatus.toUpperCase()}
+    - Dotazioni: ${details.hasElevator ? "Ascensore SI" : "Ascensore NO"}, ${details.hasPool ? "Piscina SI" : "Piscina NO"}
+    - Bagni: ${details.bathrooms}, Locali: ${details.rooms}
     - Anno: ${details.yearBuilt}
-    - Ascensore/Piscina: ${details.hasElevator ? 'Sì' : 'No'} / ${details.hasPool ? 'Sì' : 'No'}
+  `;
 
-    ISTRUZIONI SPECIFICHE PER SEZIONE (Cruciale per i nuovi layout grafici):
+  const systemInstruction = `
+    Sei un Perito Immobiliare Senior e Analista di Mercato che lavora per un fondo di investimento Real Estate.
+    IL TUO OBIETTIVO: Valutare l'immobile al PREZZO REALE DI MERCATO OGGI (Market Value), simulando una ricerca sui principali portali (Immobiliare.it, Idealista, Casa.it).
 
-    1. INVESTIMENTO (investment):
-       - Devi fornire stime separate per "Affitto Lungo Termine" (Canone mensile standard) e "Affitto Breve" (Short Rent/Airbnb stagionale).
-       - Includi una stima del "Cashflow Netto".
+    REGOLA D'ORO: IL MERCATO VINCE SUL CATASTO.
+    Le tabelle OMI sono spesso vecchie e troppo basse. Se in una zona le case si vendono a 2.000€/mq, non puoi valutarle a 1.400€/mq solo perché lo dice l'OMI. Devi allinearti al "Listing Price" reale.
+
+    PROTOCOLLO DI VALUTAZIONE (ALGORITMO COMPARATIVO):
+
+    1.  **IDENTIFICAZIONE COMPARABLES (Simulazione Web)**:
+        - Cerca nella tua conoscenza interna immobili simili in vendita ORA in quella specifica VIA o Quartiere.
+        - Se l'indirizzo è "Via Aie, Decimomannu" (esempio), sai che è una zona residenziale di ville. I prezzi sono più alti della media comunale.
     
-    2. SICUREZZA (crime):
-       - Includi "Rischio Idrogeologico" (Basso/Medio/Alto).
-       - Includi "Distanza Ospedale/Pronto Soccorso".
-       - Includi "Tasso Criminalità" rispetto alla media città.
+    2.  **LOGICA "VILLA" vs "APPARTAMENTO"**:
+        - SE TIPOLOGIA = VILLA / INDIPENDENTE:
+          *   VALE MOLTO DI PIÙ (+25% / +30%) rispetto agli appartamenti in condominio della stessa zona.
+          *   NON APPLICARE MAI malus per "piano terra" o "senza ascensore". Nelle ville non contano.
+          *   Il giardino e l'indipendenza sono driver di valore enormi.
+        - SE TIPOLOGIA = APPARTAMENTO:
+          *   Piano alto + ascensore = Premium.
+          *   Piano terra o senza ascensore = Malus.
 
-    3. CONNETTIVITÀ (connectivity):
-       - Fornisci tempi/distanze per: "Aeroporto", "Stazione Treni", "Centro Città", "Autostrada".
+    3.  **CALCOLO PREZZO AL MQ (Sanity Check)**:
+        - Esempio: Una Villa a Decimomannu ristrutturata o in buono stato viaggia sui 1.900 - 2.200 €/mq. Se il tuo calcolo viene 1.400 €/mq, È SBAGLIATO. CORREGGILO AL RIALZO.
+        - Esempio: Un appartamento a Milano Centro viaggia sui 8.000 - 10.000 €/mq.
+        - Sii coerente con i portali immobiliari.
 
-    4. SERVIZI (amenities):
-       - Conta le "Scuole" nel raggio di 1km.
-       - Conta "Supermercati" e "Parchi".
-    
-    5. DEMOGRAFIA (demographics):
-       - Stima l'età media del quartiere.
-       - Percentuale famiglie vs single.
+    4.  **SINCERITÀ E SEVERITÀ**:
+        - Se la casa è "Da Ristrutturare", abbatti il prezzo pesantemente (costo lavori oggi è alto, 1000€/mq).
+        - Se è "Nuova/Ristrutturata", spingi il prezzo verso i massimi di zona.
 
-    6. RISTRUTTURAZIONE (renovation_potential):
-       - Stima "Costo Ristrutturazione al mq".
-       - Stima "Valore Post-Ristrutturazione".
+    5.  **INVESTIMENTO**:
+        - Calcola Affitti (Lungo Termine) e Short Rent (Airbnb) basandoti sui prezzi reali degli annunci di affitto in zona.
+  `;
 
-    REGOLE GENERALI:
-    - Lingua: ITALIANO PROFESSIONALE.
-    - Valuta: € (Euro).
-    - Rispondi SOLO JSON.
+  const userPrompt = `
+    ${propertyContext}
+
+    Genera il report JSON seguendo rigorosamente queste istruzioni per sezione. Sii specifico e analitico.
+
+    1.  **OVERVIEW (Valutazione Finale)**:
+        - 'estimatedValue': Il prezzo a cui metteresti l'immobile in vendita OGGI su Immobiliare.it per venderlo in 3-6 mesi. (Non svenderlo, non fuori mercato).
+        - 'valueRange': [Prezzo Minimo (Liquidazione veloce), Prezzo Massimo (Amatore)].
+        - 'pricePerSqm': Deve essere coerente: estimatedValue / mq.
+        - 'confidence': 0.85 se zona densa, 0.95 se zona molto liquida.
+
+    2.  **MERCATO (market_comps) - 6 ITEM**:
+        - 'Giorni sul Mercato': Tempo medio vendita zona.
+        - 'Sconto Trattativa': % (es. 7%).
+        - 'Prezzo Listing Medio': Prezzo medio annunci simili in zona (spesso più alto del valore finale).
+        - 'Domanda vs Offerta': (es. "Alta Richiesta").
+        - 'Nr. Immobili Simili': Stima stock concorrente.
+        - 'Trend Prezzi': % crescita annuale.
+        - *Explanation*: Spiega perché hai scelto questi numeri basandoti sulla zona specifica.
+
+    3.  **INVESTIMENTO (investment) - DATI CONFRONTABILI**:
+        - 'Affitto Lungo Termine': Canone mensile realistico (4+4).
+        - 'Short Rent (Airbnb)': Fatturato LORDO medio mensile (occupazione x prezzo notte).
+        - 'Cashflow Netto': Stima realistica dopo tasse e costi.
+        - 'Rendimento Lordo': Yield %.
+        - 'Tasso Occupazione': % realistica per la zona.
+        - 'Spese Gestione': Stima costi annui.
+        - *Explanation*: Giustifica i canoni (es. "Zona vicina aeroporto/ospedale spinge lo short rent").
+
+    4.  **SICUREZZA (crime) - 6 ITEM**:
+        - Sii onesto. Se la zona è tranquilla, dai voti alti. Se è pericolosa, dillo.
+
+    5.  **CONNETTIVITÀ**:
+        - Calcola tempi VERI (Google Maps style) per i punti di interesse (Aeroporto, Stazione, Centro).
+        - Indica i nomi specifici (es. "Aeroporto Elmas", "Stazione Centrale").
+
+    6.  **VERDETTO AI**:
+        - Consiglia l'azione migliore (Vendi, Compra, Ristruttura) basandoti solo sui numeri.
+        - Se il prezzo/mq è basso rispetto al potenziale -> OPPORTUNITÀ.
+        - Se il prezzo è già al picco -> RISCHIO.
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: prompt,
+      contents: [
+        { role: "user", parts: [{ text: systemInstruction + "\n" + userPrompt }] }
+      ],
       config: {
         responseMimeType: "application/json",
         responseSchema: {
