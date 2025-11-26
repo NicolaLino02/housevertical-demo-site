@@ -8,13 +8,13 @@ import {
   ChevronLeft, ChevronRight, Wind, Volume2, TreePine, AlertCircle, Check, X, Gavel, FileCheck,
   Sun, CloudRain, Mountain, GraduationCap, ShoppingCart, Utensils, Dumbbell, Library, Bus, Search,
   FileText, ShieldCheck, Clock, Percent, Navigation, Map, Activity, Building2, LayoutDashboard,
-  Timer, DollarSign, ArrowRight, ThumbsUp, ThumbsDown, Info, AlertOctagon
+  Timer, DollarSign, ArrowRight, ThumbsUp, ThumbsDown, Info, AlertOctagon, BarChart3, LineChart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, 
   BarChart, Bar, Cell, PieChart, Pie, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  CartesianGrid, Legend, RadialBarChart, RadialBar, ComposedChart, Line
+  CartesianGrid, Legend, RadialBarChart, RadialBar, ComposedChart, Line, ReferenceLine
 } from 'recharts';
 
 interface ReportViewProps {
@@ -554,76 +554,103 @@ const InvestmentSection = ({ section }: { section: SectionData }) => {
 const MarketSection = ({ section, data }: { section: SectionData, data: ReportData }) => {
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const pps = data.overview.pricePerSqm;
-  
-    // Market Comparative Data (Simulated)
-    const compsData = [
-      { name: 'Economico', price: pps * 0.85, subject: pps },
-      { name: 'Medio', price: pps * 1.0, subject: pps },
-      { name: 'Lusso', price: pps * 1.25, subject: pps },
+    const min = data.overview.valueRange[0] / data.overview.estimatedValue * pps;
+    const max = data.overview.valueRange[1] / data.overview.estimatedValue * pps;
+    
+    // Distribution Curve Simulation
+    const distData = [
+      { name: 'Min', value: min * 0.9, y: 5 },
+      { name: 'Range Min', value: min, y: 15 },
+      { name: 'Medio', value: pps, y: 45 },
+      { name: 'Range Max', value: max, y: 15 },
+      { name: 'Max', value: max * 1.1, y: 5 },
     ];
+
+    const getIcon = (label: string) => {
+        const l = label.toLowerCase();
+        if (l.includes('tempo')) return Clock;
+        if (l.includes('sconto')) return Percent;
+        if (l.includes('richiesta') || l.includes('domanda')) return TrendingUp;
+        return BarChart3;
+    }
+
+    const marketStatus = pps > (max + min) / 2 ? "Premium" : "Competitivo";
   
     return (
       <div className="max-w-6xl w-full">
           {/* Header */}
           <div className="text-center mb-12">
               <h2 className="text-4xl lg:text-6xl font-bold mb-4">Analisi <span className="text-yellow-400">Mercato</span></h2>
-              <p className="text-gray-400 max-w-2xl mx-auto">Posizionamento finanziario e liquidità dell'asset.</p>
+              <p className="text-gray-400 max-w-2xl mx-auto">Posizionamento competitivo e liquidità dell'asset nel contesto locale.</p>
           </div>
   
           <Modal isOpen={!!selectedItem} onClose={() => setSelectedItem(null)} title={selectedItem?.label} icon={ChartIcon} color="text-yellow-400">
              <div className="p-6 bg-white/5 rounded-2xl border border-white/5 text-center mb-4">
                  <span className="text-4xl font-bold text-white block">{String(selectedItem?.value)}</span>
              </div>
-             <p className="text-gray-300 text-sm">Parametro indicativo della velocità di assorbimento del mercato locale.</p>
+             <p className="text-gray-300 text-sm leading-relaxed">
+               Dato calcolato incrociando annunci immobiliari attivi e transazioni recenti registrate dall'OMI nella zona.
+             </p>
           </Modal>
   
           {/* Main Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                
-               {/* KPI Cards */}
-               <div className="lg:col-span-4 space-y-4">
-                   {section.details.map((d, i) => (
-                       <motion.div 
-                          key={i}
-                          whileHover={{ scale: 1.02 }}
-                          onClick={() => setSelectedItem(d)}
-                          className="glass-panel p-6 rounded-2xl border border-white/5 hover:border-yellow-500/30 cursor-pointer flex justify-between items-center group transition-colors"
-                       >
-                           <div>
-                               <span className="block text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">{d.label}</span>
-                               <span className="text-xl font-bold text-white">{String(d.value)}</span>
-                           </div>
-                           <div className="w-10 h-10 rounded-full bg-yellow-500/10 flex items-center justify-center text-yellow-400 group-hover:bg-yellow-500/20 transition-colors">
-                               <ChartIcon className="w-5 h-5" />
-                           </div>
-                       </motion.div>
-                   ))}
+               {/* Hero Positioning Card */}
+               <div className="lg:col-span-12 glass-panel p-8 rounded-[2.5rem] border border-yellow-500/20 bg-gradient-to-r from-yellow-900/10 to-transparent relative overflow-hidden">
+                   <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-500/10 rounded-full blur-[80px]"></div>
+                   <div className="flex flex-col md:flex-row gap-12 items-center relative z-10">
+                       <div className="flex-1">
+                           <span className="text-yellow-500 font-bold uppercase tracking-widest text-xs mb-2 block">Posizionamento Prezzo</span>
+                           <h3 className="text-4xl md:text-5xl font-bold text-white mb-4">Fascia {marketStatus}</h3>
+                           <p className="text-gray-400 max-w-md text-sm leading-relaxed">
+                               Il prezzo al mq (€ {Math.round(pps)}) si colloca nella parte {marketStatus === 'Premium' ? 'alta' : 'medio-bassa'} della forchetta di mercato locale.
+                           </p>
+                       </div>
+                       
+                       {/* Distribution Curve Chart */}
+                       <div className="flex-1 w-full h-[200px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={distData}>
+                                    <defs>
+                                        <linearGradient id="colorDist" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#eab308" stopOpacity={0.3}/>
+                                            <stop offset="95%" stopColor="#eab308" stopOpacity={0}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <Area type="monotone" dataKey="y" stroke="#eab308" strokeWidth={3} fill="url(#colorDist)" />
+                                    <ReferenceLine x={2} stroke="white" strokeDasharray="3 3" label={{ position: 'top', value: 'Tu sei qui', fill: 'white', fontSize: 12 }} />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                       </div>
+                   </div>
                </div>
-  
-               {/* Composed Chart */}
-               <div className="lg:col-span-8 glass-panel p-8 rounded-3xl border border-yellow-500/20 bg-gradient-to-br from-yellow-900/5 to-transparent">
-                   <div className="flex justify-between items-center mb-6">
-                      <h3 className="text-xl font-bold text-white">Posizionamento Prezzo</h3>
-                      <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full bg-yellow-500"></span>
-                          <span className="text-xs text-gray-400 font-bold uppercase">Il tuo immobile</span>
-                      </div>
-                   </div>
-                   <div className="h-[300px] w-full">
-                       <ResponsiveContainer width="100%" height="100%">
-                           <ComposedChart data={compsData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                              <XAxis dataKey="name" stroke="#94a3b8" axisLine={false} tickLine={false} />
-                              <YAxis hide />
-                              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }} />
-                              <Bar dataKey="price" fill="#334155" radius={[8, 8, 0, 0]} barSize={60} />
-                              <Line type="monotone" dataKey="subject" stroke="#eab308" strokeWidth={4} dot={{ r: 6, fill: '#eab308' }} />
-                           </ComposedChart>
-                       </ResponsiveContainer>
-                   </div>
-                   <p className="text-center text-gray-400 text-sm mt-4">
-                       L'immobile si posiziona nella fascia <span className="text-white font-bold">Media</span> del mercato locale.
-                   </p>
+
+               {/* KPI Cards Grid - Revolut Style */}
+               <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+                   {section.details.map((d, i) => {
+                       const Icon = getIcon(d.label);
+                       return (
+                           <motion.div 
+                              key={i}
+                              whileHover={{ y: -5 }}
+                              onClick={() => setSelectedItem(d)}
+                              className="glass-panel p-6 rounded-3xl border border-white/5 hover:border-yellow-500/30 cursor-pointer flex flex-col justify-between h-32 relative overflow-hidden group"
+                           >
+                               <div className="absolute top-0 right-0 p-8 bg-yellow-500/5 rounded-full blur-xl group-hover:bg-yellow-500/10 transition-all"></div>
+                               <div className="flex justify-between items-start">
+                                   <div className="p-2 rounded-xl bg-yellow-500/10 text-yellow-400">
+                                       <Icon className="w-5 h-5" />
+                                   </div>
+                                   <ArrowUpRight className="w-4 h-4 text-gray-600 group-hover:text-yellow-400 transition-colors" />
+                               </div>
+                               <div>
+                                   <span className="text-gray-400 text-xs font-bold uppercase tracking-wider block mb-1">{d.label}</span>
+                                   <span className="text-2xl font-bold text-white">{String(d.value)}</span>
+                               </div>
+                           </motion.div>
+                       )
+                   })}
                </div>
           </div>
       </div>
