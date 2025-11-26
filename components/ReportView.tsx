@@ -8,13 +8,13 @@ import {
   ChevronLeft, ChevronRight, Wind, Volume2, TreePine, AlertCircle, Check, X, Gavel, FileCheck,
   Sun, CloudRain, Mountain, GraduationCap, ShoppingCart, Utensils, Dumbbell, Library, Bus, Search,
   FileText, ShieldCheck, Clock, Percent, Navigation, Map, Activity, Building2, LayoutDashboard,
-  Timer, DollarSign, ArrowRight
+  Timer, DollarSign, ArrowRight, ThumbsUp, ThumbsDown, Info, AlertOctagon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, 
   BarChart, Bar, Cell, PieChart, Pie, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  CartesianGrid, Legend, RadialBarChart, RadialBar
+  CartesianGrid, Legend, RadialBarChart, RadialBar, ComposedChart, Line
 } from 'recharts';
 
 interface ReportViewProps {
@@ -368,7 +368,7 @@ const ValuationSection = ({ section, data }: { section: SectionData, data: Repor
                        <m.icon className="w-5 h-5" />
                      </div>
                      <div>
-                       <span className="block text-gray-500 text-[10px] font-bold uppercase tracking-widest group-hover:text-indigo-300 transition-colors">{m.label}</span>
+                       <span className="block text-gray-500 text-xs font-bold uppercase tracking-widest group-hover:text-indigo-300 transition-colors">{m.label}</span>
                        <span className="block text-lg font-bold text-white">{m.value}</span>
                      </div>
                   </div>
@@ -550,93 +550,123 @@ const InvestmentSection = ({ section }: { section: SectionData }) => {
   );
 };
 
-// --- 3. MARKET SECTION ---
+// --- 3. MARKET SECTION (REDESIGNED) ---
 const MarketSection = ({ section, data }: { section: SectionData, data: ReportData }) => {
-  const [selectedItem, setSelectedItem] = useState<any>(null);
-  const pps = data.overview.pricePerSqm;
+    const [selectedItem, setSelectedItem] = useState<any>(null);
+    const pps = data.overview.pricePerSqm;
   
-  const comparisonData = [
-    { name: 'Tuo Immobile', price: pps, fill: '#facc15' },
-    { name: 'Media Zona', price: pps * (0.92 + Math.random() * 0.1), fill: '#eab308' },
-    { name: 'Media Città', price: pps * (0.85 + Math.random() * 0.15), fill: '#ca8a04' },
-  ];
-
-  const getIcon = (label: string) => {
-    const l = label.toLowerCase();
-    if (l.includes('prezzo') || l.includes('euro') || l.includes('€')) return Wallet;
-    if (l.includes('giorni') || l.includes('tempo')) return Clock;
-    if (l.includes('transazioni') || l.includes('vendite')) return ChartIcon;
-    if (l.includes('margine') || l.includes('%') || l.includes('sconto')) return Percent;
-    return TrendingUp;
+    // Market Comparative Data (Simulated)
+    const compsData = [
+      { name: 'Economico', price: pps * 0.85, subject: pps },
+      { name: 'Medio', price: pps * 1.0, subject: pps },
+      { name: 'Lusso', price: pps * 1.25, subject: pps },
+    ];
+  
+    return (
+      <div className="max-w-6xl w-full">
+          {/* Header */}
+          <div className="text-center mb-12">
+              <h2 className="text-4xl lg:text-6xl font-bold mb-4">Analisi <span className="text-yellow-400">Mercato</span></h2>
+              <p className="text-gray-400 max-w-2xl mx-auto">Posizionamento finanziario e liquidità dell'asset.</p>
+          </div>
+  
+          <Modal isOpen={!!selectedItem} onClose={() => setSelectedItem(null)} title={selectedItem?.label} icon={ChartIcon} color="text-yellow-400">
+             <div className="p-6 bg-white/5 rounded-2xl border border-white/5 text-center mb-4">
+                 <span className="text-4xl font-bold text-white block">{String(selectedItem?.value)}</span>
+             </div>
+             <p className="text-gray-300 text-sm">Parametro indicativo della velocità di assorbimento del mercato locale.</p>
+          </Modal>
+  
+          {/* Main Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+               
+               {/* KPI Cards */}
+               <div className="lg:col-span-4 space-y-4">
+                   {section.details.map((d, i) => (
+                       <motion.div 
+                          key={i}
+                          whileHover={{ scale: 1.02 }}
+                          onClick={() => setSelectedItem(d)}
+                          className="glass-panel p-6 rounded-2xl border border-white/5 hover:border-yellow-500/30 cursor-pointer flex justify-between items-center group transition-colors"
+                       >
+                           <div>
+                               <span className="block text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">{d.label}</span>
+                               <span className="text-xl font-bold text-white">{String(d.value)}</span>
+                           </div>
+                           <div className="w-10 h-10 rounded-full bg-yellow-500/10 flex items-center justify-center text-yellow-400 group-hover:bg-yellow-500/20 transition-colors">
+                               <ChartIcon className="w-5 h-5" />
+                           </div>
+                       </motion.div>
+                   ))}
+               </div>
+  
+               {/* Composed Chart */}
+               <div className="lg:col-span-8 glass-panel p-8 rounded-3xl border border-yellow-500/20 bg-gradient-to-br from-yellow-900/5 to-transparent">
+                   <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-xl font-bold text-white">Posizionamento Prezzo</h3>
+                      <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-yellow-500"></span>
+                          <span className="text-xs text-gray-400 font-bold uppercase">Il tuo immobile</span>
+                      </div>
+                   </div>
+                   <div className="h-[300px] w-full">
+                       <ResponsiveContainer width="100%" height="100%">
+                           <ComposedChart data={compsData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                              <XAxis dataKey="name" stroke="#94a3b8" axisLine={false} tickLine={false} />
+                              <YAxis hide />
+                              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }} />
+                              <Bar dataKey="price" fill="#334155" radius={[8, 8, 0, 0]} barSize={60} />
+                              <Line type="monotone" dataKey="subject" stroke="#eab308" strokeWidth={4} dot={{ r: 6, fill: '#eab308' }} />
+                           </ComposedChart>
+                       </ResponsiveContainer>
+                   </div>
+                   <p className="text-center text-gray-400 text-sm mt-4">
+                       L'immobile si posiziona nella fascia <span className="text-white font-bold">Media</span> del mercato locale.
+                   </p>
+               </div>
+          </div>
+      </div>
+    );
   };
 
-  return (
-    <div className="max-w-6xl w-full">
-        <div className="text-center mb-12">
-            <h2 className="text-4xl lg:text-6xl font-bold mb-4">Analisi di <span className="text-yellow-400">Mercato</span></h2>
-            <p className="text-gray-400 max-w-2xl mx-auto">{section.summary}</p>
+// --- 4. CRIME SECTION (REDESIGNED) ---
+const CrimeSection = ({ section }: { section: SectionData }) => {
+    const [selectedItem, setSelectedItem] = useState<any>(null);
+
+    return (
+        <div className="max-w-6xl w-full">
+            <div className="text-center mb-12">
+                <h2 className="text-4xl lg:text-6xl font-bold mb-4">Indice <span className="text-red-400">Sicurezza</span></h2>
+                <p className="text-gray-400 max-w-2xl mx-auto">{section.summary}</p>
+            </div>
+
+            <Modal isOpen={!!selectedItem} onClose={() => setSelectedItem(null)} title={selectedItem?.label} icon={ShieldAlert} color="text-red-400">
+                <div className="p-6 bg-white/5 rounded-2xl border border-white/5 text-center mb-4">
+                    <span className="text-2xl font-bold text-white block">{String(selectedItem?.value)}</span>
+                </div>
+                <p className="text-gray-300 text-sm">Dati incrociati con database locali e segnalazioni pubbliche. Il punteggio è normalizzato sulla media cittadina.</p>
+            </Modal>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {section.details.map((d, i) => (
+                    <motion.div 
+                        key={i} 
+                        whileHover={{ scale: 1.05 }}
+                        onClick={() => setSelectedItem(d)}
+                        className="glass-panel p-8 rounded-2xl border border-red-500/20 flex flex-col items-center text-center cursor-pointer hover:bg-red-900/10 transition-colors"
+                    >
+                        <ShieldAlert className="w-12 h-12 text-red-500 mb-6 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]" />
+                        <span className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">{d.label}</span>
+                        <span className="text-white text-2xl font-bold">{String(d.value)}</span>
+                    </motion.div>
+                ))}
+            </div>
         </div>
-
-        <Modal 
-          isOpen={!!selectedItem} 
-          onClose={() => setSelectedItem(null)} 
-          title={selectedItem?.label} 
-          icon={selectedItem ? getIcon(selectedItem.label) : ChartIcon} 
-          color="text-yellow-400"
-        >
-          <div className="p-6 bg-white/5 rounded-2xl border border-white/5 text-center">
-              <span className="text-4xl font-bold text-white block mb-2">{String(selectedItem?.value)}</span>
-          </div>
-          <p className="text-gray-400 text-sm leading-relaxed">
-             Questo indicatore posiziona l'immobile nel percentile {section.score > 7 ? 'superiore' : 'medio'} del mercato locale. 
-             Basato su analisi comparativa di annunci simili e rogiti recenti.
-          </p>
-        </Modal>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-             <div className="h-[400px] w-full glass-panel rounded-3xl border border-yellow-500/10 p-6 flex flex-col justify-center relative">
-                 <h3 className="text-lg font-bold text-white mb-6 text-center">Confronto Prezzo al Mq</h3>
-                 <ResponsiveContainer width="100%" height="100%">
-                     <BarChart data={comparisonData} margin={{top: 20, right: 30, left: 20, bottom: 5}}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8'}} />
-                        <YAxis hide />
-                        <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />
-                        <Bar dataKey="price" radius={[8, 8, 0, 0]} barSize={60} />
-                     </BarChart>
-                 </ResponsiveContainer>
-             </div>
-
-             <div className="space-y-4">
-                 {section.details.map((d, i) => {
-                     const Icon = getIcon(d.label);
-                     return (
-                        <motion.div 
-                            key={i}
-                            whileHover={{ x: 10, backgroundColor: 'rgba(255,255,255,0.05)' }}
-                            onClick={() => setSelectedItem(d)}
-                            className="glass-panel p-6 rounded-2xl border border-white/5 cursor-pointer flex items-center justify-between group transition-all"
-                        >
-                            <div className="flex items-center gap-5">
-                                <div className="p-3 bg-yellow-500/10 rounded-xl text-yellow-400 group-hover:bg-yellow-500/20 transition-colors">
-                                    <Icon className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <span className="text-gray-400 text-xs font-bold uppercase tracking-widest block mb-1">{d.label}</span>
-                                    <span className="text-xl font-bold text-white group-hover:text-yellow-300 transition-colors">{String(d.value)}</span>
-                                </div>
-                            </div>
-                            <ArrowRight className="w-5 h-5 text-gray-600 group-hover:text-white" />
-                        </motion.div>
-                     )
-                 })}
-             </div>
-        </div>
-    </div>
-  );
+    );
 };
 
-// --- 4. ENVIRONMENT SECTION ---
+// --- 5. ENVIRONMENT SECTION ---
 const EnvironmentSection = ({ section }: { section: SectionData }) => {
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
@@ -722,7 +752,7 @@ const EnvironmentSection = ({ section }: { section: SectionData }) => {
   );
 };
 
-// --- 5. RENOVATION SECTION ---
+// --- 6. RENOVATION SECTION ---
 const RenovationSection = ({ section }: { section: SectionData }) => {
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
@@ -809,124 +839,77 @@ const RenovationSection = ({ section }: { section: SectionData }) => {
   );
 };
 
-// --- 6. LEGAL SECTION ---
-const LegalSection = ({ section }: { section: SectionData }) => {
-  const [selectedItem, setSelectedItem] = useState<any>(null);
-
-  const getStatusColor = (val: string) => {
-    const v = val.toLowerCase();
-    if (v.includes('ok') || v.includes('regolare') || v.includes('assente') || v.includes('basso')) return 'bg-green-500';
-    if (v.includes('medio') || v.includes('verifica')) return 'bg-yellow-500';
-    return 'bg-red-500';
-  };
-
-  return (
-    <div className="max-w-6xl w-full">
-      <div className="text-center mb-12">
-        <h2 className="text-4xl lg:text-6xl font-bold mb-4">Checklist <span className="text-gray-400">Legale</span></h2>
-        <p className="text-gray-400 max-w-2xl mx-auto">{section.summary}</p>
-      </div>
-
-      <Modal 
-          isOpen={!!selectedItem} 
-          onClose={() => setSelectedItem(null)} 
-          title={selectedItem?.label} 
-          icon={Gavel} 
-          color="text-gray-400"
-      >
-          <div className="p-6 bg-white/5 rounded-2xl border border-white/5 text-center mb-4">
-              <span className="text-xl font-bold text-white block">{String(selectedItem?.value)}</span>
-          </div>
-          <p className="text-gray-300 text-sm leading-relaxed">
-             Verifica preliminare basata su dati catastali e ipotecari pubblici. 
-             Si raccomanda sempre una verifica notarile prima del rogito.
-          </p>
-      </Modal>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-         {section.details.map((d, i) => {
-           const statusColor = getStatusColor(String(d.value));
-           return (
-             <motion.div 
-               key={i}
-               whileHover={{ x: 5 }}
-               onClick={() => setSelectedItem(d)}
-               className="glass-panel p-5 rounded-xl border border-white/5 flex items-center justify-between cursor-pointer group"
-             >
-                <div className="flex items-center gap-4">
-                   <div className={`w-2 h-12 rounded-full ${statusColor}`}></div>
-                   <div>
-                      <h4 className="font-bold text-white text-lg">{d.label}</h4>
-                      <p className="text-gray-400 text-sm">{String(d.value)}</p>
-                   </div>
-                </div>
-                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
-                   {statusColor === 'bg-green-500' ? <CheckCircle className="w-5 h-5 text-green-500" /> : <AlertTriangle className="w-5 h-5 text-yellow-500" />}
-                </div>
-             </motion.div>
-           )
-         })}
-      </div>
-    </div>
-  );
-};
-
-// --- 7. CONNECTIVITY SECTION ---
+// --- 7. CONNECTIVITY SECTION (REDESIGNED) ---
 const ConnectivitySection = ({ section }: { section: SectionData }) => {
-  const [selectedItem, setSelectedItem] = useState<any>(null);
-
-  const getIcon = (label: string) => {
-    const l = label.toLowerCase();
-    if (l.includes('aero')) return Plane;
-    if (l.includes('treno') || l.includes('stazione')) return Train;
-    if (l.includes('auto') || l.includes('strada')) return Car;
-    return MapPin;
+    const [selectedItem, setSelectedItem] = useState<any>(null);
+  
+    // Categorize transport types
+    const transports = [
+      { id: 'plane', icon: Plane, label: 'Aeroporto', value: '45 min', color: 'text-cyan-400' },
+      { id: 'train', icon: Train, label: 'Stazione', value: '15 min', color: 'text-cyan-400' },
+      { id: 'car', icon: Car, label: 'Autostrada', value: '8 min', color: 'text-cyan-400' },
+    ];
+  
+    return (
+      <div className="max-w-6xl w-full">
+         <div className="text-center mb-12">
+          <h2 className="text-4xl lg:text-6xl font-bold mb-4">Hub <span className="text-cyan-400">Trasporti</span></h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">Accessibilità e tempi di percorrenza dai principali snodi.</p>
+        </div>
+  
+        <Modal isOpen={!!selectedItem} onClose={() => setSelectedItem(null)} title={selectedItem?.label} icon={Navigation} color="text-cyan-400">
+           <div className="p-6 bg-white/5 rounded-2xl border border-white/5 text-center mb-4">
+              <span className="text-4xl font-bold text-white block">{selectedItem?.value}</span>
+           </div>
+           <p className="text-gray-300 text-sm">Tempo stimato in condizioni di traffico medio.</p>
+        </Modal>
+  
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            {/* Timeline Left */}
+            <div className="lg:col-span-5 relative py-4 pl-4">
+                <div className="absolute left-4 top-0 bottom-0 w-1 bg-cyan-900/50 rounded-full"></div>
+                <div className="space-y-12">
+                    {section.details.map((d, i) => (
+                        <div key={i} className="relative pl-10 group cursor-pointer" onClick={() => setSelectedItem({label: d.label, value: d.value})}>
+                            <div className="absolute left-[11px] top-1.5 w-4 h-4 rounded-full bg-[#0f172a] border-4 border-cyan-500 group-hover:scale-125 transition-transform"></div>
+                            <h4 className="text-lg font-bold text-white mb-1 group-hover:text-cyan-400 transition-colors">{d.label}</h4>
+                            <span className="text-cyan-500 font-mono text-sm">{String(d.value)}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+  
+            {/* Mobility Score & Main Cards */}
+            <div className="lg:col-span-7 space-y-8">
+                <div className="glass-panel p-8 rounded-3xl border border-cyan-500/20 flex items-center justify-between">
+                     <div>
+                         <h3 className="text-xl font-bold text-white mb-1">Mobility Score</h3>
+                         <p className="text-gray-400 text-sm">Indice di accessibilità generale</p>
+                     </div>
+                     <div className="relative w-24 h-24">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <RadialBarChart innerRadius="70%" outerRadius="100%" data={[{ value: section.score * 10, fill: '#06b6d4' }]} startAngle={90} endAngle={-270}>
+                               <RadialBar background dataKey="value" cornerRadius={10} />
+                            </RadialBarChart>
+                         </ResponsiveContainer>
+                         <div className="absolute inset-0 flex items-center justify-center font-bold text-xl text-white">{section.score}</div>
+                     </div>
+                </div>
+  
+                <div className="grid grid-cols-3 gap-4">
+                    {transports.map((t) => (
+                        <motion.div key={t.id} whileHover={{y:-5}} className="glass-panel p-4 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center">
+                            <t.icon className={`w-8 h-8 ${t.color} mb-3`} />
+                            <span className="text-xs text-gray-400 font-bold uppercase">{t.label}</span>
+                            <span className="text-white font-bold">{t.value}</span>
+                        </motion.div>
+                    ))}
+                </div>
+            </div>
+        </div>
+      </div>
+    );
   };
-
-  return (
-    <div className="max-w-6xl w-full">
-       <div className="text-center mb-12">
-        <h2 className="text-4xl lg:text-6xl font-bold mb-4">Connettività <span className="text-cyan-400">e Trasporti</span></h2>
-        <p className="text-gray-400 max-w-2xl mx-auto">{section.summary}</p>
-      </div>
-
-      <Modal 
-          isOpen={!!selectedItem} 
-          onClose={() => setSelectedItem(null)} 
-          title={selectedItem?.label} 
-          icon={selectedItem ? getIcon(selectedItem.label) : MapPin} 
-          color="text-cyan-400"
-      >
-          <div className="p-6 bg-white/5 rounded-2xl border border-white/5 text-center mb-4">
-              <span className="text-3xl font-bold text-white block">{String(selectedItem?.value)}</span>
-          </div>
-          <p className="text-gray-300 text-sm leading-relaxed">
-             Distanza calcolata in linea d'aria o tramite stima di percorso medio in condizioni di traffico standard.
-          </p>
-      </Modal>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-         {section.details.map((d, i) => {
-            const Icon = getIcon(d.label);
-            return (
-              <motion.div
-                key={i}
-                whileHover={{ y: -10 }}
-                onClick={() => setSelectedItem(d)}
-                className="glass-panel p-6 rounded-3xl border border-cyan-500/20 flex flex-col items-center text-center cursor-pointer group hover:bg-cyan-900/10 transition-colors"
-              >
-                 <div className="w-16 h-16 rounded-full bg-cyan-500/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                    <Icon className="w-8 h-8 text-cyan-400" />
-                 </div>
-                 <h4 className="text-white font-bold mb-2">{d.label}</h4>
-                 <span className="px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 text-sm font-bold">{String(d.value)}</span>
-              </motion.div>
-            )
-         })}
-      </div>
-    </div>
-  );
-};
 
 // --- 8. AMENITIES SECTION ---
 const AmenitiesSection = ({ section }: { section: SectionData }) => {
@@ -1004,104 +987,246 @@ const AmenitiesSection = ({ section }: { section: SectionData }) => {
   );
 };
 
-// --- 9. DEMOGRAPHICS SECTION ---
+// --- 9. DEMOGRAPHICS SECTION (REDESIGNED) ---
 const DemographicsSection = ({ section }: { section: SectionData }) => {
-  const [selectedItem, setSelectedItem] = useState<any>(null);
-
-  // Mock data for pie chart
-  const ageData = [
-    { name: '0-18', value: 15, fill: '#e879f9' },
-    { name: '19-35', value: 25, fill: '#d946ef' },
-    { name: '36-65', value: 40, fill: '#c026d3' },
-    { name: '65+', value: 20, fill: '#a21caf' },
-  ];
-
-  const getIcon = (label: string) => {
-    const l = label.toLowerCase();
-    if (l.includes('età')) return Activity;
-    if (l.includes('famigl')) return Home;
-    if (l.includes('reddito')) return Wallet;
-    if (l.includes('istruz') || l.includes('laurea')) return GraduationCap;
-    return Users;
+    const [selectedItem, setSelectedItem] = useState<any>(null);
+  
+    // Age Pyramid Data (Mock)
+    const data = [
+      { age: '65+', pct: 20 },
+      { age: '50-64', pct: 30 },
+      { age: '30-49', pct: 35 },
+      { age: '18-29', pct: 10 },
+      { age: '0-18', pct: 5 },
+    ];
+  
+    return (
+      <div className="max-w-6xl w-full">
+         <div className="text-center mb-12">
+            <h2 className="text-4xl lg:text-6xl font-bold mb-4">Profilo <span className="text-purple-400">Sociologico</span></h2>
+            <p className="text-gray-400 max-w-2xl mx-auto">{section.summary}</p>
+         </div>
+  
+         <Modal isOpen={!!selectedItem} onClose={() => setSelectedItem(null)} title={selectedItem?.label} icon={Users} color="text-purple-400">
+            <div className="p-6 bg-white/5 rounded-2xl border border-white/5 text-center mb-4">
+                <span className="text-3xl font-bold text-white block">{String(selectedItem?.value)}</span>
+            </div>
+            <p className="text-gray-300 text-sm">Dato chiave per determinare il target di inquilino ideale.</p>
+         </Modal>
+  
+         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+             {/* Age Pyramid Chart */}
+             <div className="glass-panel p-8 rounded-3xl border border-purple-500/20">
+                 <h3 className="text-lg font-bold text-white mb-6">Piramide Età Residenti</h3>
+                 <div className="h-[300px] w-full">
+                     <ResponsiveContainer width="100%" height="100%">
+                         <BarChart layout="vertical" data={data} margin={{ left: 10, right: 10 }}>
+                             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" />
+                             <XAxis type="number" stroke="#94a3b8" />
+                             <YAxis dataKey="age" type="category" stroke="#fff" width={50} />
+                             <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }} cursor={{fill: 'rgba(168,85,247,0.1)'}} />
+                             <Bar dataKey="pct" fill="#c084fc" radius={[0, 4, 4, 0]} barSize={30} />
+                         </BarChart>
+                     </ResponsiveContainer>
+                 </div>
+             </div>
+  
+             {/* Clean List */}
+             <div className="space-y-4">
+                {section.details.map((d, i) => (
+                    <motion.div 
+                       key={i}
+                       whileHover={{ x: 5, backgroundColor: 'rgba(192, 132, 252, 0.1)' }}
+                       onClick={() => setSelectedItem(d)}
+                       className="glass-panel p-5 rounded-2xl border border-white/5 flex items-center justify-between cursor-pointer group transition-all"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400">
+                                <Users className="w-5 h-5" />
+                            </div>
+                            <span className="font-bold text-white">{d.label}</span>
+                        </div>
+                        <span className="text-xl font-bold text-purple-300">{String(d.value)}</span>
+                    </motion.div>
+                ))}
+             </div>
+         </div>
+      </div>
+    );
   };
 
-  return (
-    <div className="max-w-6xl w-full">
-      <div className="text-center mb-12">
-        <h2 className="text-4xl lg:text-6xl font-bold mb-4">Analisi <span className="text-purple-400">Demografica</span></h2>
-        <p className="text-gray-400 max-w-2xl mx-auto">{section.summary}</p>
-      </div>
+// --- 10. LEGAL SECTION (REDESIGNED) ---
+const LegalSection = ({ section }: { section: SectionData }) => {
+    const [selectedItem, setSelectedItem] = useState<any>(null);
 
-      <Modal 
-          isOpen={!!selectedItem} 
-          onClose={() => setSelectedItem(null)} 
-          title={selectedItem?.label} 
-          icon={selectedItem ? getIcon(selectedItem.label) : Users} 
-          color="text-purple-400"
-      >
-          <div className="p-6 bg-white/5 rounded-2xl border border-white/5 text-center mb-4">
-              <span className="text-3xl font-bold text-white block">{String(selectedItem?.value)}</span>
-          </div>
-          <p className="text-gray-300 text-sm leading-relaxed">
-             Insight AI: Un dato come questo indica {String(selectedItem?.label).toLowerCase().includes('età') ? 'il dinamismo della zona' : 'il livello socio-economico del quartiere'}, 
-             influenzando direttamente la tipologia di inquilino ideale per un investimento.
-          </p>
-      </Modal>
+    // Identify status based on keywords
+    const getStatus = (val: string) => {
+        const v = val.toLowerCase();
+        if (v.includes('ok') || v.includes('regolare') || v.includes('assente')) return 'success';
+        if (v.includes('attenzione') || v.includes('verifica') || v.includes('presenza')) return 'warning';
+        return 'neutral';
+    };
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-         {/* Donut Chart */}
-         <div className="lg:col-span-5 h-[300px] relative">
-            <ResponsiveContainer width="100%" height="100%">
-               <PieChart>
-                  <Pie 
-                    data={ageData} 
-                    innerRadius={60} 
-                    outerRadius={100} 
-                    paddingAngle={5} 
-                    dataKey="value"
-                  >
-                    {ageData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} stroke="rgba(255,255,255,0.1)" />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }} itemStyle={{ color: '#fff' }} />
-               </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-               <span className="text-3xl font-bold text-white block">42</span>
-               <span className="text-xs text-purple-300 uppercase font-bold">Età Media</span>
+    return (
+        <div className="max-w-6xl w-full">
+            <div className="text-center mb-12">
+                <h2 className="text-4xl lg:text-6xl font-bold mb-4">Due Diligence <span className="text-gray-400">Legale</span></h2>
+                <p className="text-gray-400 max-w-2xl mx-auto text-sm">Quadro sintetico della conformità urbanistica, catastale e ipotecaria.</p>
             </div>
-         </div>
 
-         {/* Banners */}
-         <div className="lg:col-span-7 space-y-4">
-            {section.details.map((d, i) => {
-               const Icon = getIcon(d.label);
-               return (
-                  <motion.div 
-                     key={i}
-                     whileHover={{ x: 10, scale: 1.02 }}
-                     onClick={() => setSelectedItem(d)}
-                     className="glass-panel p-6 rounded-2xl border-l-4 border-purple-500 cursor-pointer group relative overflow-hidden"
-                  >
-                     <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                     <div className="flex justify-between items-center relative z-10">
-                        <div className="flex items-center gap-4">
-                           <div className="p-3 bg-purple-500/20 rounded-full text-purple-400">
-                              <Icon className="w-6 h-6" />
-                           </div>
-                           <span className="text-lg font-bold text-white">{d.label}</span>
-                        </div>
-                        <span className="text-2xl font-bold text-purple-300">{String(d.value)}</span>
+            <Modal isOpen={!!selectedItem} onClose={() => setSelectedItem(null)} title={selectedItem?.label} icon={Gavel} color="text-gray-400">
+                <div className="p-6 bg-white/5 rounded-2xl border border-white/5 text-center mb-4">
+                    <span className="text-xl font-bold text-white block">{String(selectedItem?.value)}</span>
+                </div>
+                <p className="text-gray-300 text-sm">Verifica preliminare. Si consiglia sempre il supporto di un notaio per la conferma definitiva.</p>
+            </Modal>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Gauge Chart */}
+                <div className="glass-panel p-8 rounded-3xl border border-white/10 flex flex-col items-center justify-center text-center">
+                     <h3 className="text-lg font-bold text-white mb-6">Indice Rischio</h3>
+                     <div className="w-full h-[200px] relative">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <RadialBarChart innerRadius="80%" outerRadius="100%" data={[{ value: section.score * 10, fill: section.score > 7 ? '#22c55e' : '#ef4444' }]} startAngle={180} endAngle={0}>
+                                <RadialBar background dataKey="value" cornerRadius={30} />
+                            </RadialBarChart>
+                         </ResponsiveContainer>
+                         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 text-center">
+                            <span className={`text-5xl font-bold ${section.score > 7 ? 'text-green-500' : 'text-red-500'}`}>{section.score}/10</span>
+                            <span className="block text-gray-500 text-xs font-bold uppercase mt-2">Legal Score</span>
+                         </div>
                      </div>
-                  </motion.div>
-               )
-            })}
-         </div>
-      </div>
-    </div>
-  );
+                </div>
+
+                {/* Checklist Grid */}
+                <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {section.details.map((d, i) => {
+                        const status = getStatus(String(d.value));
+                        return (
+                            <motion.div 
+                               key={i}
+                               whileHover={{ scale: 1.02 }}
+                               onClick={() => setSelectedItem(d)}
+                               className={`p-5 rounded-2xl border cursor-pointer flex flex-col gap-2 relative overflow-hidden ${
+                                   status === 'success' ? 'bg-green-900/10 border-green-500/20' : 
+                                   status === 'warning' ? 'bg-yellow-900/10 border-yellow-500/20' : 
+                                   'bg-white/5 border-white/10'
+                               }`}
+                            >
+                                <div className="flex justify-between items-start">
+                                    <div className={`p-2 rounded-lg ${
+                                        status === 'success' ? 'bg-green-500/20 text-green-400' : 
+                                        status === 'warning' ? 'bg-yellow-500/20 text-yellow-400' : 
+                                        'bg-gray-700 text-gray-400'
+                                    }`}>
+                                        {status === 'success' ? <CheckCircle className="w-5 h-5" /> : 
+                                         status === 'warning' ? <AlertTriangle className="w-5 h-5" /> : 
+                                         <FileText className="w-5 h-5" />}
+                                    </div>
+                                    <ArrowUpRight className="w-4 h-4 text-gray-500" />
+                                </div>
+                                <div>
+                                    <span className="text-gray-400 text-xs font-bold uppercase">{d.label}</span>
+                                    <h4 className="text-white font-bold leading-tight mt-1">{String(d.value)}</h4>
+                                </div>
+                            </motion.div>
+                        )
+                    })}
+                </div>
+            </div>
+        </div>
+    );
 };
+
+// --- 11. VERDICT SECTION (RESTORED 3-COLUMN LAYOUT) ---
+const VerdictSection = ({ section, data }: { section: SectionData, data: ReportData }) => {
+    const isPositive = section.score >= 6;
+  
+    return (
+      <div className="max-w-7xl w-full flex flex-col items-center">
+        <div className="text-center mb-12">
+           <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-fuchsia-500/10 text-fuchsia-400 border border-fuchsia-500/20 mb-6">
+             <BrainCircuit className="w-4 h-4" />
+             <span className="text-xs font-bold uppercase tracking-widest">Analisi Conclusiva</span>
+           </div>
+           <h2 className="text-5xl lg:text-7xl font-bold mb-4 text-white">Verdetto <span className="text-fuchsia-500">AI</span></h2>
+           <p className="text-gray-400 max-w-2xl mx-auto">Sintesi finale basata su {data.overview.confidence * 100}% di confidenza dati.</p>
+        </div>
+  
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full items-start">
+          
+          {/* Column 1: Pros (Green) */}
+          <div className="glass-panel p-8 rounded-[2rem] border border-green-500/20 bg-gradient-to-br from-green-900/10 to-transparent relative overflow-hidden group hover:border-green-500/40 transition-all">
+             <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full blur-[50px]"></div>
+             <h3 className="flex items-center gap-3 text-2xl font-bold text-green-400 mb-8 relative z-10">
+               <div className="p-2 bg-green-500/20 rounded-lg"><Check className="w-6 h-6" /></div>
+               Punti di Forza
+             </h3>
+             <ul className="space-y-6 relative z-10">
+               {section.details.filter((_, i) => i % 2 === 0).map((d, i) => (
+                 <li key={i} className="flex items-start gap-4 group/item">
+                   <div className="w-2 h-2 rounded-full bg-green-500 mt-2.5 shadow-[0_0_10px_rgba(34,197,94,0.5)] group-hover/item:scale-150 transition-transform"></div>
+                   <div>
+                     <span className="block font-bold text-white text-lg mb-1">{d.label}</span>
+                     <span className="text-gray-400 text-sm">{String(d.value)}</span>
+                   </div>
+                 </li>
+               ))}
+             </ul>
+          </div>
+  
+          {/* Column 2: Center Score (Hero) */}
+          <div className="flex flex-col items-center justify-center text-center relative order-first lg:order-none mb-8 lg:mb-0">
+             {/* Glow Effect */}
+             <div className="absolute inset-0 bg-fuchsia-600/20 blur-[100px] rounded-full pointer-events-none"></div>
+             
+             {/* Main Circle */}
+             <div className="relative z-10 glass-panel p-10 rounded-full border border-white/10 w-[300px] h-[300px] flex flex-col items-center justify-center shadow-2xl bg-[#0f172a]/80 backdrop-blur-xl group hover:scale-105 transition-transform duration-500">
+               <div className="absolute inset-0 rounded-full border-4 border-white/5"></div>
+               <div className="absolute inset-0 rounded-full border-4 border-t-fuchsia-500 border-r-fuchsia-500 border-b-transparent border-l-transparent animate-spin-slow opacity-50"></div>
+               
+               <span className="text-8xl font-bold text-white tracking-tighter drop-shadow-[0_0_30px_rgba(255,255,255,0.3)]">{section.score}</span>
+               <span className="text-fuchsia-400 uppercase tracking-[0.2em] text-sm mt-2 font-bold">Vertical Score</span>
+             </div>
+  
+             {/* Recommendation Badge & Text */}
+             <div className="mt-10 space-y-6 relative z-10 w-full max-w-md">
+                <div className={`py-4 px-8 rounded-2xl font-bold text-2xl border flex items-center justify-center gap-3 shadow-lg ${isPositive ? 'bg-green-600 border-green-500 text-white shadow-green-900/50' : 'bg-red-600 border-red-500 text-white shadow-red-900/50'}`}>
+                  {isPositive ? <Gavel className="w-6 h-6" /> : <AlertTriangle className="w-6 h-6" />}
+                  {isPositive ? 'OPPORTUNITÀ' : 'RISCHIO ALTO'}
+                </div>
+                
+                <div className="glass-panel p-6 rounded-2xl border border-white/10">
+                   <p className="text-gray-300 text-base leading-relaxed font-medium">
+                     "{section.recommendation}"
+                   </p>
+                </div>
+             </div>
+          </div>
+  
+          {/* Column 3: Cons (Red) */}
+          <div className="glass-panel p-8 rounded-[2rem] border border-red-500/20 bg-gradient-to-bl from-red-900/10 to-transparent relative overflow-hidden group hover:border-red-500/40 transition-all">
+             <div className="absolute top-0 left-0 w-32 h-32 bg-red-500/10 rounded-full blur-[50px]"></div>
+             <h3 className="flex items-center gap-3 text-2xl font-bold text-red-400 mb-8 relative z-10">
+               <div className="p-2 bg-red-500/20 rounded-lg"><X className="w-6 h-6" /></div>
+               Attenzione A
+             </h3>
+             <ul className="space-y-6 relative z-10">
+               {section.details.filter((_, i) => i % 2 !== 0).map((d, i) => (
+                 <li key={i} className="flex items-start gap-4 group/item">
+                   <div className="w-2 h-2 rounded-full bg-red-500 mt-2.5 shadow-[0_0_10px_rgba(239,68,68,0.5)] group-hover/item:scale-150 transition-transform"></div>
+                   <div>
+                     <span className="block font-bold text-white text-lg mb-1">{d.label}</span>
+                     <span className="text-gray-400 text-sm">{String(d.value)}</span>
+                   </div>
+                 </li>
+               ))}
+             </ul>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
 // --- MAIN REPORT VIEW COMPONENT ---
 const ReportView: React.FC<ReportViewProps> = ({ data }) => {
@@ -1195,23 +1320,7 @@ const ReportView: React.FC<ReportViewProps> = ({ data }) => {
          </div>
 
          <div id="crime" ref={(el) => { sectionRefs.current['crime'] = el; }} className="min-h-screen w-full flex items-center justify-center p-4 lg:p-12 snap-start pt-20 pb-32 md:pt-12 md:pb-12">
-            {/* Reusing Environment style for Crime/Security roughly similar layout logic or simplified */}
-             <div className="max-w-6xl w-full">
-                <div className="text-center mb-12">
-                  <h2 className="text-4xl lg:text-6xl font-bold mb-4">Indice <span className="text-red-400">Sicurezza</span></h2>
-                  <p className="text-gray-400 max-w-2xl mx-auto">{data.sections.crime.summary}</p>
-                </div>
-                {/* Simplified Card Grid for Crime */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                   {data.sections.crime.details.map((d, i) => (
-                      <div key={i} className="glass-panel p-6 rounded-2xl border border-red-500/20 flex flex-col items-center text-center">
-                         <ShieldAlert className="w-10 h-10 text-red-500 mb-4" />
-                         <span className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">{d.label}</span>
-                         <span className="text-white text-xl font-bold">{String(d.value)}</span>
-                      </div>
-                   ))}
-                </div>
-             </div>
+            <CrimeSection section={data.sections.crime} />
          </div>
 
          <div id="environment" ref={(el) => { sectionRefs.current['environment'] = el; }} className="min-h-screen w-full flex items-center justify-center p-4 lg:p-12 snap-start pt-20 pb-32 md:pt-12 md:pb-12 bg-black/20">
@@ -1239,21 +1348,7 @@ const ReportView: React.FC<ReportViewProps> = ({ data }) => {
          </div>
 
          <div id="ai_verdict" ref={(el) => { sectionRefs.current['ai_verdict'] = el; }} className="min-h-screen w-full flex items-center justify-center p-4 lg:p-12 snap-start pt-20 pb-32 md:pt-12 md:pb-12 bg-black/20">
-             {/* Verdict Section reused from overview vertical card logic roughly, or simple */}
-             <div className="max-w-4xl w-full text-center">
-                 <div className="mb-12">
-                     <BrainCircuit className="w-20 h-20 text-fuchsia-500 mx-auto mb-6" />
-                     <h2 className="text-5xl lg:text-7xl font-bold mb-6 text-white">Verdetto <span className="text-fuchsia-500">Finale</span></h2>
-                     <p className="text-xl text-gray-300 leading-relaxed max-w-2xl mx-auto">"{data.sections.ai_verdict.recommendation}"</p>
-                 </div>
-                 <div className="glass-panel p-8 rounded-3xl border border-fuchsia-500/30 bg-fuchsia-900/10">
-                    <span className="block text-fuchsia-300 font-bold uppercase tracking-widest text-sm mb-4">House Vertical Score</span>
-                    <div className="text-8xl font-bold text-white mb-2">{data.sections.ai_verdict.score}<span className="text-4xl text-gray-500">/10</span></div>
-                    <div className="w-full h-4 bg-gray-800 rounded-full overflow-hidden max-w-md mx-auto mt-6">
-                       <div className="h-full bg-gradient-to-r from-fuchsia-600 to-purple-600" style={{ width: `${data.sections.ai_verdict.score * 10}%` }}></div>
-                    </div>
-                 </div>
-             </div>
+             <VerdictSection section={data.sections.ai_verdict} data={data} />
          </div>
       </main>
 
