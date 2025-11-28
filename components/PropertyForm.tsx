@@ -42,7 +42,7 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ address, onSubmit, onBack }
     <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-6 bg-slate-900 relative">
       <div className="w-full max-w-3xl glass-panel p-6 md:p-12 rounded-3xl shadow-2xl animate-fade-in-up my-4">
         <button onClick={onBack} className="text-gray-400 hover:text-white mb-6 text-sm">← Indietro</button>
-        
+
         <div className="mb-8 border-b border-white/10 pb-6">
           <h2 className="text-2xl md:text-3xl font-bold mb-2">Dettagli dell'Immobile</h2>
           <div className="flex items-center text-blue-400">
@@ -52,16 +52,16 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ address, onSubmit, onBack }
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6 md:space-y-8">
-          
+
           {/* Main Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
             <div className="space-y-2">
               <label className="text-sm text-gray-400 font-medium">Superficie (mq)</label>
               <div className="relative">
                 <Ruler className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
-                <input 
-                  type="number" 
-                  value={details.sqm} 
+                <input
+                  type="number"
+                  value={details.sqm}
                   onChange={(e) => updateDetail('sqm', Number(e.target.value))}
                   className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -72,10 +72,23 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ address, onSubmit, onBack }
               <label className="text-sm text-gray-400 font-medium">Piano</label>
               <div className="relative">
                 <Layers className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
-                <input 
-                  type="number" 
-                  value={details.floor} 
+                <input
+                  type="number"
+                  value={details.floor}
                   onChange={(e) => updateDetail('floor', Number(e.target.value))}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm text-gray-400 font-medium">Anno Costruzione</label>
+              <div className="relative">
+                <Hammer className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
+                <input
+                  type="number"
+                  value={details.yearBuilt}
+                  onChange={(e) => updateDetail('yearBuilt', Number(e.target.value))}
                   className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -91,11 +104,10 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ address, onSubmit, onBack }
                   key={type}
                   type="button"
                   onClick={() => updateDetail('type', type as any)}
-                  className={`py-3 px-2 md:px-4 rounded-xl border transition-all text-sm md:text-base ${
-                    details.type === type 
-                    ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' 
-                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
-                  }`}
+                  className={`py-3 px-2 md:px-4 rounded-xl border transition-all text-sm md:text-base ${details.type === type
+                      ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20'
+                      : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                    }`}
                 >
                   {typeLabels[type]}
                 </button>
@@ -103,8 +115,8 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ address, onSubmit, onBack }
             </div>
           </div>
 
-           {/* Renovation Selection */}
-           <div className="space-y-3">
+          {/* Renovation Selection */}
+          <div className="space-y-3">
             <label className="text-sm text-gray-400 font-medium">Condizioni</label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
               {[
@@ -116,11 +128,10 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ address, onSubmit, onBack }
                   key={status.id}
                   type="button"
                   onClick={() => updateDetail('renovationStatus', status.id as any)}
-                  className={`py-3 px-4 rounded-xl border text-sm font-medium transition-all ${
-                    details.renovationStatus === status.id
-                    ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-500/20' 
-                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
-                  }`}
+                  className={`py-3 px-4 rounded-xl border text-sm font-medium transition-all ${details.renovationStatus === status.id
+                      ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-500/20'
+                      : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                    }`}
                 >
                   {status.label}
                 </button>
@@ -167,7 +178,7 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ address, onSubmit, onBack }
             </label>
           </div>
 
-          <button 
+          <button
             type="submit"
             className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-2xl shadow-lg hover:shadow-blue-500/25 transition-all transform hover:scale-[1.02] text-lg"
           >

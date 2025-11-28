@@ -1,5 +1,4 @@
-
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { PropertyDetails, AddressResult, ReportData } from "../types";
 
 export const generateReport = async (
@@ -13,179 +12,291 @@ export const generateReport = async (
 
   const ai = new GoogleGenAI({ apiKey });
 
-  // --- SCHEMA DEFINITION (Identico per compatibilità UI) ---
-  const detailItemSchema = {
-    type: Type.OBJECT,
-    properties: {
-      label: { type: Type.STRING },
-      value: { type: Type.STRING },
-      explanation: { type: Type.STRING }
-    },
-    required: ["label", "value", "explanation"]
-  };
-
-  const sectionSchema = {
-    type: Type.OBJECT,
-    properties: {
-      title: { type: Type.STRING },
-      summary: { type: Type.STRING },
-      score: { type: Type.NUMBER },
-      details: { 
-        type: Type.ARRAY, 
-        items: detailItemSchema
-      },
-      recommendation: { type: Type.STRING },
-    },
-    required: ["title", "summary", "score", "details", "recommendation"]
-  };
-
-  // --- NUOVA LOGICA DI PROMPT "MARKET LISTING SIMULATION" ---
-
   const propertyContext = `
     TARGET IMMOBILE:
     - Indirizzo Completo: ${address.display_name}
-    - Coordinate: ${address.lat}, ${address.lon} (Usa queste per la micro-zona esatta)
+    - Coordinate: ${address.lat}, ${address.lon}
     - Tipologia: ${details.type.toUpperCase()}
-    - Superficie: ${details.sqm} mq
+    - Superficie: ${details.sqm}
     - Piano: ${details.floor}
-    - Condizioni Dichiarate: ${details.renovationStatus.toUpperCase()}
-    - Dotazioni: ${details.hasElevator ? "Ascensore SI" : "Ascensore NO"}, ${details.hasPool ? "Piscina SI" : "Piscina NO"}
-    - Bagni: ${details.bathrooms}, Locali: ${details.rooms}
+    - Condizioni: ${details.renovationStatus.toUpperCase()}
+    - Dotazioni: ${details.hasElevator ? "Ascensore SI" : "Ascensore NO"}, ${details.hasPool ? "Piscina SI" : "Piscina NO"}, Balcone/Terrazzo
     - Anno: ${details.yearBuilt}
   `;
 
+  // Definiamo la struttura JSON attesa nel prompt testuale poiché non possiamo usare responseSchema con i Tools
+  // Questa struttura DEVE riflettere esattamente l'interfaccia ReportData in types.ts
+  const jsonStructure = `
+  {
+    "overview": {
+      "estimatedValue": number,
+      "valueRange": [number, number],
+      "pricePerSqm": number,
+      "confidence": number (0.1-1.0)
+    },
+    "sections": {
+      "valuation": { 
+        "title": "Valutazione", 
+        "summary": "string", 
+        "score": number (1-10), 
+        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
+        "recommendation": "string", 
+        "chartData": { 
+          "history": [{"year": "string", "value": number}], 
+          "forecast": [{"quarter": "string", "growth": number}] 
+        } 
+      },
+      "investment": { 
+        "title": "Investimento", 
+        "summary": "string", 
+        "score": number (1-10), 
+        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
+        "recommendation": "string", 
+        "financials": { 
+          "grossYield": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "recommendation": "string" }, 
+          "netYield": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "recommendation": "string" }, 
+          "cashFlowMonthly": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "recommendation": "string" }, 
+          "capRate": { "value": number, "explanation": "string" }, 
+          "totalInvestment": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "recommendation": "string" } 
+        },
+        "expenses": {
+          "condoFees": number,
+          "tax": number,
+          "maintenance": number,
+          "management": number,
+          "utilities": number
+        },
+        "scenarios": {
+          "longTerm": { "rentMonthly": number, "occupancyRate": number, "cashFlowYearly": number },
+          "shortTerm": { "adr": number, "occupancyRate": number, "cashFlowYearly": number }
+        },
+        "longTermData": { "advantages": ["string"], "risks": ["string"], "contractType": "string", "tenantRisk": "low | medium | high" },
+        "shortTermData": {
+          "seasonality": {
+            "winter": { "occupancy": number, "rate": number },
+            "spring": { "occupancy": number, "rate": number },
+            "summer": { "occupancy": number, "rate": number },
+            "autumn": { "occupancy": number, "rate": number }
+          },
+          "risks": ["string"]
+        }
+      },
+      "crime": { 
+        "title": "Sicurezza", 
+        "summary": "string", 
+        "score": number (1-10), 
+        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
+        "recommendation": "string",
+        "news": [{"title": "string", "summary": "string", "source": "string", "url": "string (URL REALE obbligatorio)", "date": "string"}],
+        "chartData": { "trend": [{"year": "string", "value": number}] }
+      },
+      "environment": { 
+        "title": "Ambiente", 
+        "summary": "string", 
+        "score": number (1-10), 
+        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
+        "recommendation": "string",
+        "chartData": { "radar": [{"subject": "string", "A": number, "fullMark": 100}] }
+      },
+      "connectivity": { 
+        "title": "Connettività", 
+        "summary": "string", 
+        "score": number (1-10), 
+        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
+        "recommendation": "string" 
+      },
+      "amenities": { 
+        "title": "Servizi", 
+        "summary": "string", 
+        "score": number (1-10), 
+        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
+        "recommendation": "string" 
+      },
+      "demographics": { 
+        "title": "Demografia", 
+        "summary": "string", 
+        "score": number (1-10), 
+        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
+        "recommendation": "string" 
+      },
+      "market_comps": { 
+        "title": "Mercato", 
+        "summary": "string", 
+        "score": number (1-10), 
+        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
+        "recommendation": "string", 
+        "marketData": { 
+          "pricePerSqm": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" }, 
+          "averageDaysOnMarket": { "value": number, "explanation": "string", "trend": [{"year": "string", "value": number}], "breakdown": [{"label": "string", "value": number}], "recommendation": "string" }, 
+          "demandIndex": { "value": number, "explanation": "string", "trend": [{"year": "string", "value": number}], "breakdown": [{"label": "string", "value": number}], "recommendation": "string" }, 
+          "supplyIndex": { "value": number, "explanation": "string" }, 
+          "priceGrowthForecast": { "value": number, "explanation": "string", "trend": [{"year": "string", "value": number}], "breakdown": [{"label": "string", "value": number}], "recommendation": "string" }, 
+          "comparables": [{"address": "string (Via e Civico esatto se visibile, altrimenti Via specifica)", "price": number, "sqm": number, "pricePerSqm": number, "floor": "string", "bathrooms": number, "rooms": number, "elevator": boolean, "description": "string (Riassunto breve e accattivante)", "analysis": "string", "distance": "string", "url": "string (URL REALE obbligatorio)"}], 
+          "priceHistory": [{"year": "string", "price": number}] 
+        } 
+      },
+      "renovation_potential": { 
+        "title": "Ristrutturazione", 
+        "summary": "string", 
+        "score": number (1-10), 
+        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
+        "recommendation": "string",
+        "renovation": {
+          "totalCost": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
+          "valueIncrease": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
+          "roi": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
+          "timeline": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
+          "breakdown": [{"category": "string", "cost": number, "description": "string", "tips": "string"}],
+          "bonuses": [{"name": "string", "value": "string", "description": "string"}]
+        }
+      },
+      "rental_yield": { 
+        "title": "Rendita", 
+        "summary": "string", 
+        "score": number (1-10), 
+        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
+        "recommendation": "string" 
+      },
+      "legal_tax": { 
+        "title": "Legale", 
+        "summary": "string", 
+        "score": number (1-10), 
+        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
+        "recommendation": "string" 
+      },
+      "ai_verdict": { 
+        "title": "Verdetto AI", 
+        "summary": "string", 
+        "score": number (1-10), 
+        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
+        "recommendation": "string" 
+      }
+    }
+  }
+  `;
+
   const systemInstruction = `
-    Sei un Perito Immobiliare Senior e Analista di Mercato che lavora per un fondo di investimento Real Estate.
-    IL TUO OBIETTIVO: Valutare l'immobile al PREZZO REALE DI MERCATO OGGI (Market Value), simulando una ricerca sui principali portali (Immobiliare.it, Idealista, Casa.it).
+    Sei un "Real Estate Scout" esperto e intransigente. 
+    Il tuo compito è analizzare il mercato immobiliare reale usando Google Search.
 
-    REGOLA D'ORO: IL MERCATO VINCE SUL CATASTO.
-    Le tabelle OMI sono spesso vecchie e troppo basse. Se in una zona le case si vendono a 2.000€/mq, non puoi valutarle a 1.400€/mq solo perché lo dice l'OMI. Devi allinearti al "Listing Price" reale.
+    *** REGOLE CRITICHE DI RICERCA (Grounding) ***
+    1. I portali immobiliari (Immobiliare.it, Idealista) spesso NASCONDONO il numero civico esatto.
+    2. QUANDO IL NUMERO CIVICO NON È VISIBILE:
+       - Cerca di dedurlo dalla descrizione o dalla mappa se possibile.
+       - Se impossibile, usa la VIA SPECIFICA (es. "Via Tuveri").
+       - EVITA "Zona Centro" se puoi essere più preciso.
+       - "address": "Via Tuveri 15" (OTTIMO)
+       - "address": "Via Tuveri" (BUONO)
+       - "address": "Trivano via Tuveri..." (SBAGLIATO - Non mettere il titolo qui)
 
-    PROTOCOLLO DI VALUTAZIONE (ALGORITMO COMPARATIVO):
+    3. DESCRIZIONE E URL:
+       - "description": NON copiare il titolo. Fai un RIASSUNTO breve (max 20 parole) delle caratteristiche chiave (es. "Luminoso trilocale ristrutturato con doppia esposizione e posto auto").
+       - "url": OBBLIGATORIO. Deve essere il link reale.
 
-    1.  **IDENTIFICAZIONE COMPARABLES (Simulazione Web)**:
-        - Cerca nella tua conoscenza interna immobili simili in vendita ORA in quella specifica VIA o Quartiere.
-        - Se l'indirizzo è "Via Aie, Decimomannu" (esempio), sai che è una zona residenziale di ville. I prezzi sono più alti della media comunale.
+    4. STRATEGIA DI RICERCA GLOBALE (Per ogni sezione):
+       - **Mercato**: "site:immobiliare.it vendita ${address.address.city} ${address.address.road}", "site:idealista.it vendita ${address.address.city} ${address.address.road}".
+       - **Sicurezza**: Cerca "criminalità ${address.address.city} ${address.address.road}", "notizie cronaca ${address.address.city} quartiere", "statistiche furti ${address.address.city}".
+       - **Ambiente**: Cerca "qualità aria ${address.address.city}", "parchi vicino ${address.address.road}", "inquinamento acustico ${address.address.city}".
+       - **Connettività**: Cerca "fermate bus vicino ${address.address.road}", "stazione treni vicino ${address.address.road}", "distanza aeroporto ${address.address.city}".
+       - **Servizi**: Cerca "supermercati vicino ${address.address.road}", "scuole vicino ${address.address.road}", "farmacie vicino ${address.address.road}".
+       - **Demografia**: Cerca "statistiche demografiche ${address.address.city}", "reddito medio quartiere ${address.address.city}".
+
+    *** GUIDA ALLA COMPILAZIONE JSON ***
+    - **POPOLAMENTO COMPLETO**: Ogni sezione (Crime, Environment, Connectivity, etc.) DEVE avere il campo "details" compilato con almeno 3-4 dati REALI e SPECIFICI trovati.
+    - Esempio Connectivity: "Fermata Bus Linea 9 a 100m", "Stazione Centrale a 2km". (NON scrivere "Buoni trasporti").
+    - Esempio Amenities: "Supermercato Conad a 200m", "Farmacia Rossi a 50m". (NON scrivere "Negozi vicini").
     
-    2.  **LOGICA "VILLA" vs "APPARTAMENTO"**:
-        - SE TIPOLOGIA = VILLA / INDIPENDENTE:
-          *   VALE MOLTO DI PIÙ (+25% / +30%) rispetto agli appartamenti in condominio della stessa zona.
-          *   NON APPLICARE MAI malus per "piano terra" o "senza ascensore". Nelle ville non contano.
-          *   Il giardino e l'indipendenza sono driver di valore enormi.
-        - SE TIPOLOGIA = APPARTAMENTO:
-          *   Piano alto + ascensore = Premium.
-          *   Piano terra o senza ascensore = Malus.
+    - **SICUREZZA (Crime)**:
+      - Cerca notizie di cronaca REALI e recenti per la zona/città.
+      - Compila il campo "news" con Titolo, Fonte e URL reale dell'articolo.
+      - Compila "chartData.trend" con una stima dell'andamento criminalità ultimi 5 anni (es. indice 0-100).
 
-    3.  **CALCOLO PREZZO AL MQ (Sanity Check)**:
-        - Esempio: Una Villa a Decimomannu ristrutturata o in buono stato viaggia sui 1.900 - 2.200 €/mq. Se il tuo calcolo viene 1.400 €/mq, È SBAGLIATO. CORREGGILO AL RIALZO.
-        - Esempio: Un appartamento a Milano Centro viaggia sui 8.000 - 10.000 €/mq.
-        - Sii coerente con i portali immobiliari.
+    - **AMBIENTE (Environment)**:
+      - Cerca dati su: Qualità Aria (AQI), Aree Verdi (Parchi specifici), Inquinamento Acustico.
+      - Compila "details" con:
+        - "Qualità Aria": Valore AQI stimato e spiegazione.
+        - "Aree Verdi": Nomi dei parchi vicini e distanza.
+        - "Acustico": Livello di rumore stimato (Basso/Medio/Alto).
+      - Compila "chartData.radar" con punteggi 0-100 per: Aria, Verde, Silenzio, Pulizia, Acqua.
 
-    4.  **SINCERITÀ E SEVERITÀ**:
-        - Se la casa è "Da Ristrutturare", abbatti il prezzo pesantemente (costo lavori oggi è alto, 1000€/mq).
-        - Se è "Nuova/Ristrutturata", spingi il prezzo verso i massimi di zona.
+    - **RISTRUTTURAZIONE (Renovation)**:
+      - Stima i costi di ristrutturazione per mq (es. 500-800€/mq).
+      - Calcola "totalCost" (Costo Totale), "valueIncrease" (Incremento Valore Post-Lavori), "roi" (Ritorno Investimento).
+      - Compila "breakdown" con voci specifiche: Impianti, Muratura, Infissi, Finiture.
+      - Cerca BONUS EDILIZI attivi (es. Bonus Ristrutturazione 50%, Ecobonus) e compilali in "bonuses".
 
-    5.  **INVESTIMENTO**:
-        - Calcola Affitti (Lungo Termine) e Short Rent (Airbnb) basandoti sui prezzi reali degli annunci di affitto in zona.
+    - **INVESTIMENTI & SPESE**:
+      - Calcola "expenses" (IMU, Condominio, Manutenzione) stimandole sulla base dei mq e della zona.
+      - Calcola "scenarios":
+        - Long Term: Affitto mensile realistico per la zona.
+        - Short Term: Prezzo per notte (ADR) e Occupazione media stagionale.
+      - Compila "shortTermData.seasonality" con tassi di occupazione realistici per le 4 stagioni.
+
+    - "estimatedValue": Media ponderata dei comparabili.
+    - "confidence": Bassa (0.5) se pochi dati, Alta (0.9) se dati precisi.
+    - "address": Via e Civico (o Via specifica).
+    - "url": Link reale.
   `;
 
   const userPrompt = `
+    Dati Immobile Target:
     ${propertyContext}
 
-    Genera il report JSON seguendo rigorosamente queste istruzioni per sezione. Sii specifico e analitico.
-
-    1.  **OVERVIEW (Valutazione Finale)**:
-        - 'estimatedValue': Il prezzo a cui metteresti l'immobile in vendita OGGI su Immobiliare.it per venderlo in 3-6 mesi. (Non svenderlo, non fuori mercato).
-        - 'valueRange': [Prezzo Minimo (Liquidazione veloce), Prezzo Massimo (Amatore)].
-        - 'pricePerSqm': Deve essere coerente: estimatedValue / mq.
-        - 'confidence': 0.85 se zona densa, 0.95 se zona molto liquida.
-
-    2.  **MERCATO (market_comps) - 6 ITEM**:
-        - 'Giorni sul Mercato': Tempo medio vendita zona.
-        - 'Sconto Trattativa': % (es. 7%).
-        - 'Prezzo Listing Medio': Prezzo medio annunci simili in zona (spesso più alto del valore finale).
-        - 'Domanda vs Offerta': (es. "Alta Richiesta").
-        - 'Nr. Immobili Simili': Stima stock concorrente.
-        - 'Trend Prezzi': % crescita annuale.
-        - *Explanation*: Spiega perché hai scelto questi numeri basandoti sulla zona specifica.
-
-    3.  **INVESTIMENTO (investment) - DATI CONFRONTABILI**:
-        - 'Affitto Lungo Termine': Canone mensile realistico (4+4).
-        - 'Short Rent (Airbnb)': Fatturato LORDO medio mensile (occupazione x prezzo notte).
-        - 'Cashflow Netto': Stima realistica dopo tasse e costi.
-        - 'Rendimento Lordo': Yield %.
-        - 'Tasso Occupazione': % realistica per la zona.
-        - 'Spese Gestione': Stima costi annui.
-        - *Explanation*: Giustifica i canoni (es. "Zona vicina aeroporto/ospedale spinge lo short rent").
-
-    4.  **SICUREZZA (crime) - 6 ITEM**:
-        - Sii onesto. Se la zona è tranquilla, dai voti alti. Se è pericolosa, dillo.
-
-    5.  **CONNETTIVITÀ**:
-        - Calcola tempi VERI (Google Maps style) per i punti di interesse (Aeroporto, Stazione, Centro).
-        - Indica i nomi specifici (es. "Aeroporto Elmas", "Stazione Centrale").
-
-    6.  **VERDETTO AI**:
-        - Consiglia l'azione migliore (Vendi, Compra, Ristruttura) basandoti solo sui numeri.
-        - Se il prezzo/mq è basso rispetto al potenziale -> OPPORTUNITÀ.
-        - Se il prezzo è già al picco -> RISCHIO.
+    OBIETTIVO: Genera un report immobiliare COMPLETO e BASATO SU DATI REALI.
+    
+    1. Trova 4 Comparables reali (con URL e Indirizzo pulito).
+    2. Cerca dati specifici per Sicurezza, Ambiente, Trasporti e Servizi.
+    3. Compila TUTTI i campi del JSON, inclusi i grafici (chartData) e le analisi finanziarie.
+    
+    Genera il report JSON seguendo rigorosamente questa struttura:
+    ${jsonStructure}
   `;
 
   try {
+    console.log("GENERATED PROMPT:", systemInstruction + "\n" + userPrompt);
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [
         { role: "user", parts: [{ text: systemInstruction + "\n" + userPrompt }] }
       ],
       config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            overview: {
-              type: Type.OBJECT,
-              properties: {
-                estimatedValue: { type: Type.NUMBER },
-                valueRange: { type: Type.ARRAY, items: { type: Type.NUMBER } },
-                pricePerSqm: { type: Type.NUMBER },
-                confidence: { type: Type.NUMBER }
-              },
-              required: ["estimatedValue", "valueRange", "pricePerSqm", "confidence"]
-            },
-            sections: {
-              type: Type.OBJECT,
-              properties: {
-                valuation: sectionSchema,
-                investment: sectionSchema,
-                crime: sectionSchema,
-                environment: sectionSchema,
-                connectivity: sectionSchema,
-                amenities: sectionSchema,
-                demographics: sectionSchema,
-                market_comps: sectionSchema,
-                renovation_potential: sectionSchema,
-                rental_yield: sectionSchema,
-                legal_tax: sectionSchema,
-                ai_verdict: sectionSchema,
-              },
-              required: [
-                "valuation", "investment", "crime", "environment", "connectivity", 
-                "amenities", "demographics", "market_comps", "renovation_potential", 
-                "rental_yield", "legal_tax", "ai_verdict"
-              ]
-            }
-          },
-          required: ["overview", "sections"]
-        }
+        // ABILITIAMO GOOGLE SEARCH GROUNDING
+        tools: [{ googleSearch: {} }],
+        // Rimuoviamo responseSchema rigido per permettere l'uso dei tool e la flessibilità della ricerca
+        // responseMimeType: "application/json", 
       }
     });
 
-    const text = response.text;
+    let text = response.text;
+    console.log("RAW RESPONSE:", text);
     if (!text) throw new Error("Nessun dato ricevuto dall'AI");
-    
-    return JSON.parse(text) as ReportData;
+
+    // Pulizia del testo per estrarre il JSON (Gemini con Tools a volte chatta o usa markdown)
+    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    // Cerchiamo l'inizio e la fine del JSON
+    const jsonStart = text.indexOf('{');
+    const jsonEnd = text.lastIndexOf('}');
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+      text = text.substring(jsonStart, jsonEnd + 1);
+    }
+
+    const parsedData = JSON.parse(text);
+
+    // Validazione base
+    if (!parsedData.overview || !parsedData.sections) {
+      throw new Error("Struttura JSON non valida ricevuta dall'AI");
+    }
+
+    return parsedData as ReportData;
   } catch (error: any) {
-    console.error("Gemini API Error Full:", JSON.stringify(error, null, 2));
+    console.error("Gemini API Error Full:", error);
+    console.error("Error Name:", error.name);
+    console.error("Error Message:", error.message);
+    if (error.status) console.error("Error Status:", error.status);
+    if (error.statusText) console.error("Error Status Text:", error.statusText);
+    if (error.response?.text) console.error("Raw Text received:", error.response.text);
     throw error;
   }
 };
