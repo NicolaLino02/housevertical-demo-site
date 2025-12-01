@@ -14,15 +14,32 @@ export interface AddressResult {
 }
 
 export interface PropertyDetails {
-  floor: number;
+  type: 'house' | 'apartment';
+  subType?: string; // e.g., 'detached', 'semi_detached', 'penthouse'
+  role: 'owner' | 'buyer' | 'tenant' | 'agent' | 'other';
+
+  // Composition
   sqm: number;
-  type: 'apartment' | 'villa' | 'loft' | 'penthouse';
-  renovationStatus: 'new' | 'good' | 'needs_renovation';
-  hasElevator: boolean;
-  hasPool: boolean;
   rooms: number;
   bathrooms: number;
+  floor: number;
+  totalFloors?: number;
+
+  // Features
+  features: string[]; // e.g., 'balcony', 'garage', 'pool', 'elevator', 'view'
+  parkingSpaces: { indoor: number; outdoor: number };
+
+  // Condition & Age
   yearBuilt: number;
+  yearBuiltUnknown?: boolean;
+  isRenovated: boolean;
+  renovationYear?: number;
+  condition: 'excellent' | 'good' | 'livable' | 'poor' | 'ruin';
+
+  // Legacy fields mapping (for compatibility if needed, though we should migrate)
+  hasElevator?: boolean; // Mapped to features
+  hasPool?: boolean; // Mapped to features
+  renovationStatus?: 'new' | 'good' | 'needs_renovation'; // Mapped to condition
 }
 
 export interface DetailItem {
@@ -149,6 +166,80 @@ export interface RenovationData {
   bonuses: { name: string; value: string; description: string }[];
 }
 
+export interface TransitLine {
+  type: 'bus' | 'train' | 'metro' | 'tram';
+  name: string;
+  distance: string;
+  frequency: string;
+  destinations: string[];
+}
+
+export interface ConnectivityData {
+  mobilityScore: RichMetric;
+  transitLines: TransitLine[];
+  airports: { name: string; distance: string; time: string }[];
+  highways: { name: string; distance: string }[];
+  commuteTimes: { destination: string; time: string; mode: string }[];
+}
+
+export interface ServiceItem {
+  name: string;
+  distance: string;
+  rating: number; // 1-5
+  type: 'school' | 'supermarket' | 'pharmacy' | 'gym' | 'restaurant' | 'hospital';
+}
+
+export interface AmenitiesData {
+  serviceScore: RichMetric;
+  schools: ServiceItem[];
+  supermarkets: ServiceItem[];
+  pharmacies: ServiceItem[];
+  lifestyle: ServiceItem[]; // Gyms, Restaurants
+}
+
+export interface DemographicsData {
+  populationDensity: RichMetric;
+  averageAge: RichMetric;
+  incomeLevel: RichMetric;
+  educationLevel: RichMetric;
+  ageDistribution: { ageRange: string; percentage: number }[];
+  householdComposition: { type: string; percentage: number }[];
+}
+
+export interface LegalData {
+  zoning: RichMetric; // Urbanistica (Zona A/B/C)
+  cadastral: { category: string; income: number; explanation: string }; // Catasto (A/2, A/3)
+  taxes: { name: string; amount: string; explanation: string }[]; // IMU, TARI
+  permits: { name: string; status: string; explanation: string }[]; // Agibilità, APE
+  regulations: { name: string; description: string }[]; // Cedolare Secca, Affitti Brevi
+}
+
+export interface VerdictData {
+  pros: string[];
+  cons: string[];
+  buyStrategy: { title: string; description: string; riskLevel: 'low' | 'medium' | 'high' };
+  suitability: { type: 'investor' | 'family' | 'young_couple'; score: number; reason: string }[];
+  finalScore: { value: number; label: string; description: string };
+}
+
+export interface ValuationData {
+  saleStrategy: {
+    quickSale: { price: number; timing: string; description: string; analysis: string; confidence: number };
+    marketPrice: { price: number; timing: string; description: string; analysis: string; confidence: number };
+    highPrice: { price: number; timing: string; description: string; analysis: string; confidence: number };
+  };
+  buyStrategy: {
+    idealPrice: number;
+    maxDiscount: number;
+    riskLevel: 'low' | 'medium' | 'high';
+    advice: string;
+    analysis: string; // Deep dive for the modal
+    negotiationPoints: string[]; // Specific points to use in negotiation
+  };
+  comparables: { address: string; price: number; sqm: number; similarity: number; url?: string }[];
+  marketTrend: { year: string; value: number; volume: number }[]; // Enhanced chart data
+}
+
 export interface SectionData {
   title: string;
   content: string;
@@ -167,6 +258,12 @@ export interface SectionData {
   risks?: InvestmentRisks; // Deprecated but kept for compatibility if needed
   marketData?: MarketData; // New for Market Section
   renovation?: RenovationData; // New for Renovation Section
+  connectivity?: ConnectivityData; // New for Connectivity Section
+  amenities?: AmenitiesData; // New for Amenities Section
+  demographics?: DemographicsData; // New for Demographics Section
+  legal?: LegalData; // New for Legal Section
+  verdict?: VerdictData; // New for Verdict Section
+  valuation?: ValuationData; // New for Valuation Section
   metrics?: Metric[];
   chartData?: any;
   news?: NewsItem[];
