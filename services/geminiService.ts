@@ -1,5 +1,185 @@
 import { GoogleGenAI } from "@google/genai";
-import { PropertyDetails, AddressResult, ReportData } from "../types";
+import { PropertyDetails, AddressResult, ReportData, SectionData } from "../types";
+import {
+  calculateExpenses,
+  calculateLongTermScenario,
+  calculateShortTermScenario,
+  calculateValuation,
+  calculateRenovationPotential
+} from "../utils/calculations";
+
+// --- JSON Schemas for AI Responses ---
+
+const locationJsonStructure = `
+{
+  "crime": { 
+    "title": "Sicurezza",
+    "summary": "string",
+    "score": number, 
+    "details": [{"label": "string", "value": "string", "explanation": "string"}], 
+    "recommendation": "string",
+    "news": [{"title": "string", "summary": "string", "source": "string", "url": "string", "date": "string"}]
+  },
+  "environment": { 
+    "title": "Ambiente",
+    "summary": "string",
+    "score": number, 
+    "details": [{"label": "string", "value": "string", "explanation": "string"}], 
+    "recommendation": "string"
+  },
+  "connectivity": { 
+    "title": "Connettività",
+    "summary": "string",
+    "score": number, 
+    "details": [{"label": "string", "value": "string", "explanation": "string"}], 
+    "recommendation": "string",
+    "connectivity": {
+      "mobilityScore": { "value": number, "explanation": "string" },
+      "transitLines": [{"type": "bus | train | metro | tram", "name": "string", "distance": "string", "frequency": "string", "destinations": ["string"]}],
+      "airports": [{"name": "string", "distance": "string", "time": "string"}],
+      "highways": [{"name": "string", "distance": "string"}],
+      "commuteTimes": [{"destination": "string", "time": "string", "mode": "string"}]
+    }
+  },
+  "amenities": { 
+    "title": "Servizi",
+    "summary": "string",
+    "score": number, 
+    "details": [{"label": "string", "value": "string", "explanation": "string"}], 
+    "recommendation": "string",
+    "amenities": {
+      "serviceScore": { "value": number, "explanation": "string" },
+      "schools": [{"name": "string", "distance": "string", "rating": number, "type": "school"}],
+      "supermarkets": [{"name": "string", "distance": "string", "rating": number, "type": "supermarket"}],
+      "pharmacies": [{"name": "string", "distance": "string", "rating": number, "type": "pharmacy"}],
+      "lifestyle": [{"name": "string", "distance": "string", "rating": number, "type": "gym | restaurant | hospital"}]
+    }
+  },
+  "demographics": { 
+    "title": "Demografia",
+    "summary": "string",
+    "score": number, 
+    "details": [{"label": "string", "value": "string", "explanation": "string"}], 
+    "recommendation": "string",
+    "demographics": {
+      "populationDensity": { "value": number, "explanation": "string" },
+      "averageAge": { "value": number, "explanation": "string" },
+      "incomeLevel": { "value": number, "explanation": "string" },
+      "educationLevel": { "value": number, "explanation": "string" },
+      "ageDistribution": [{"ageRange": "string", "percentage": number}],
+      "householdComposition": [{"type": "string", "percentage": number}]
+    }
+  },
+  "legal_tax": { 
+    "title": "Legale & Tasse",
+    "summary": "string",
+    "score": number, 
+    "details": [{"label": "string", "value": "string", "explanation": "string"}], 
+    "recommendation": "string",
+    "legal": {
+      "zoning": { "value": "string", "explanation": "string" },
+      "cadastral": { "category": "string", "income": number, "explanation": "string" },
+      "taxes": [{"name": "string", "amount": "string", "explanation": "string"}],
+      "permits": [{"name": "string", "status": "string", "explanation": "string"}],
+      "regulations": [{"name": "string", "description": "string"}]
+    }
+  }
+}
+`;
+
+const marketJsonStructure = `
+{
+  "comparables": [
+    {
+      "address": "string", 
+      "price": number, 
+      "sqm": number, 
+      "pricePerSqm": number, 
+      "floor": "string", 
+      "bathrooms": number, 
+      "rooms": number, 
+      "elevator": boolean, 
+      "description": "string", 
+      "analysis": "string", 
+      "distance": "string", 
+      "url": "string"
+    }
+  ],
+  "marketData": {
+    "averageDaysOnMarket": { "value": number, "explanation": "string" },
+    "demandIndex": { "value": number, "explanation": "string" },
+    "priceGrowthForecast": { "value": number, "explanation": "string" },
+    "realAdvisorPricePerSqm": number
+  },
+  "rent": {
+    "longTermMonthly": number,
+    "shortTermDaily": number
+  },
+  "verdict": {
+    "pros": ["string"],
+    "cons": ["string"],
+    "buyStrategy": { "title": "string", "description": "string", "riskLevel": "low | medium | high" },
+    "suitability": [{"type": "investor | family | young_couple", "score": number, "reason": "string"}],
+    "finalScore": { "value": number, "label": "string", "description": "string" },
+    "recommendation": "string"
+  }
+}
+`;
+
+// --- Helper Functions ---
+
+const cleanJson = (text: string): string => {
+  // Remove markdown code blocks
+  let cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
+
+  const firstOpen = cleaned.indexOf('{');
+  if (firstOpen === -1) return "{}";
+
+  let balance = 0;
+  let inString = false;
+  let escaped = false;
+  let endIndex = -1;
+
+  for (let i = firstOpen; i < cleaned.length; i++) {
+    const char = cleaned[i];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escaped = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (!inString) {
+      if (char === '{') {
+        balance++;
+      } else if (char === '}') {
+        balance--;
+        if (balance === 0) {
+          endIndex = i;
+          break;
+        }
+      }
+    }
+  }
+
+  if (endIndex !== -1) {
+    return cleaned.substring(firstOpen, endIndex + 1);
+  }
+
+  // Fallback: return from first open to end if no balanced close found
+  return cleaned.substring(firstOpen);
+};
+
+// --- Main Function ---
 
 export const generateReport = async (
   address: AddressResult,
@@ -12,366 +192,320 @@ export const generateReport = async (
 
   const ai = new GoogleGenAI({ apiKey });
 
+  // Helper for rate limiting
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
   const propertyContext = `
-    TARGET IMMOBILE:
-    - Indirizzo Completo: ${address.display_name}
-    - Coordinate: ${address.lat}, ${address.lon}
-    - Tipologia: ${details.type.toUpperCase()} ${details.subType ? `(${details.subType})` : ''}
-    - Ruolo Utente: ${details.role.toUpperCase()}
-    - Superficie: ${details.sqm} mq
-    - Piano: ${details.floor} ${details.totalFloors ? `di ${details.totalFloors}` : ''}
-    - Locali: ${details.rooms}
-    - Bagni: ${details.bathrooms}
-    - Condizioni: ${details.condition.toUpperCase()}
-    - Ristrutturato: ${details.isRenovated ? `SÌ (Anno: ${details.renovationYear})` : 'NO'}
-    - Anno Costruzione: ${details.yearBuiltUnknown ? 'SCONOSCIUTO' : details.yearBuilt}
-    - Caratteristiche: ${details.features.join(', ') || 'Nessuna specifica'}
-    - Parcheggi: ${details.parkingSpaces.indoor} coperti, ${details.parkingSpaces.outdoor} scoperti
+    PROPERTY DETAILS:
+    - Address: ${address.display_name}
+    - Coordinates: ${address.lat}, ${address.lon}
+    - Type: ${details.type} (${details.subType || 'Standard'})
+    - Size: ${details.sqm} sqm
+    - Floor: ${details.floor}
+    - Condition: ${details.condition}
+    - Renovated: ${details.isRenovated ? 'Yes' : 'No'}
+    - Year Built: ${details.yearBuilt}
+    - Features: ${details.features.join(", ")}
   `;
 
-  // Definiamo la struttura JSON attesa nel prompt testuale poiché non possiamo usare responseSchema con i Tools
-  // Questa struttura DEVE riflettere esattamente l'interfaccia ReportData in types.ts
-  const jsonStructure = `
-  {
-    "overview": {
-      "estimatedValue": number,
-      "valueRange": [number, number],
-      "pricePerSqm": number,
-      "confidence": number (0.1-1.0)
-    },
-    "sections": {
-      "valuation": { 
-        "title": "Valutazione", 
-        "summary": "string", 
-        "score": number (1-10), 
-        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
-        "recommendation": "string", 
-        "chartData": { 
-          "history": [{"year": "string", "value": number}], 
-          "forecast": [{"quarter": "string", "growth": number}] 
-        } 
-      },
-      "investment": { 
-        "title": "Investimento", 
-        "summary": "string", 
-        "score": number (1-10), 
-        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
-        "recommendation": "string", 
-        "financials": { 
-          "grossYield": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "recommendation": "string" }, 
-          "netYield": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "recommendation": "string" }, 
-          "cashFlowMonthly": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "recommendation": "string" }, 
-          "capRate": { "value": number, "explanation": "string" }, 
-          "totalInvestment": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "recommendation": "string" } 
-        },
-        "expenses": {
-          "condoFees": number,
-          "tax": number,
-          "maintenance": number,
-          "management": number,
-          "utilities": number
-        },
-        "scenarios": {
-          "longTerm": { "rentMonthly": number, "occupancyRate": number, "cashFlowYearly": number },
-          "shortTerm": { "adr": number, "occupancyRate": number, "cashFlowYearly": number }
-        },
-        "longTermData": { "advantages": ["string"], "risks": ["string"], "contractType": "string", "tenantRisk": "low | medium | high" },
-        "shortTermData": {
-          "seasonality": {
-            "winter": { "occupancy": number, "rate": number },
-            "spring": { "occupancy": number, "rate": number },
-            "summer": { "occupancy": number, "rate": number },
-            "autumn": { "occupancy": number, "rate": number }
-          },
-          "risks": ["string"]
-        }
-      },
-      "crime": { 
-        "title": "Sicurezza", 
-        "summary": "string", 
-        "score": number (1-10), 
-        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
-        "recommendation": "string",
-        "news": [{"title": "string", "summary": "string", "source": "string", "url": "string (URL REALE obbligatorio)", "date": "string"}],
-        "chartData": { "trend": [{"year": "string", "value": number}] }
-      },
-      "environment": { 
-        "title": "Ambiente", 
-        "summary": "string", 
-        "score": number (1-10), 
-        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
-        "recommendation": "string",
-        "chartData": { "radar": [{"subject": "string", "A": number, "fullMark": 100}] }
-      },
-      "connectivity": { 
-        "title": "Connettività", 
-        "summary": "string", 
-        "score": number (1-10), 
-        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
-        "recommendation": "string",
-        "connectivity": {
-          "mobilityScore": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
-          "transitLines": [{"type": "bus | train | metro | tram", "name": "string", "distance": "string", "frequency": "string", "destinations": ["string"]}],
-          "airports": [{"name": "string", "distance": "string", "time": "string"}],
-          "highways": [{"name": "string", "distance": "string"}],
-          "commuteTimes": [{"destination": "string", "time": "string", "mode": "string"}]
-        }
-      },
-      "amenities": { 
-        "title": "Servizi", 
-        "summary": "string", 
-        "score": number (1-10), 
-        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
-        "recommendation": "string",
-        "amenities": {
-          "serviceScore": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
-          "schools": [{"name": "string", "distance": "string", "rating": number, "type": "school"}],
-          "supermarkets": [{"name": "string", "distance": "string", "rating": number, "type": "supermarket"}],
-          "pharmacies": [{"name": "string", "distance": "string", "rating": number, "type": "pharmacy"}],
-          "lifestyle": [{"name": "string", "distance": "string", "rating": number, "type": "gym | restaurant | hospital"}]
-        }
-      },
-      "demographics": { 
-        "title": "Demografia", 
-        "summary": "string", 
-        "score": number (1-10), 
-        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
-        "recommendation": "string",
-        "demographics": {
-          "populationDensity": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
-          "averageAge": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
-          "incomeLevel": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
-          "educationLevel": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
-          "ageDistribution": [{"ageRange": "string", "percentage": number}],
-          "householdComposition": [{"type": "string", "percentage": number}]
-        }
-      },
-      "market_comps": { 
-        "title": "Mercato", 
-        "summary": "string", 
-        "score": number (1-10), 
-        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
-        "recommendation": "string", 
-        "marketData": { 
-          "pricePerSqm": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" }, 
-          "averageDaysOnMarket": { "value": number, "explanation": "string", "trend": [{"year": "string", "value": number}], "breakdown": [{"label": "string", "value": number}], "recommendation": "string" }, 
-          "demandIndex": { "value": number, "explanation": "string", "trend": [{"year": "string", "value": number}], "breakdown": [{"label": "string", "value": number}], "recommendation": "string" }, 
-          "supplyIndex": { "value": number, "explanation": "string" }, 
-          "priceGrowthForecast": { "value": number, "explanation": "string", "trend": [{"year": "string", "value": number}], "breakdown": [{"label": "string", "value": number}], "recommendation": "string" }, 
-          "comparables": [{"address": "string (Via e Civico esatto se visibile, altrimenti Via specifica)", "price": number, "sqm": number, "pricePerSqm": number, "floor": "string", "bathrooms": number, "rooms": number, "elevator": boolean, "description": "string (Riassunto breve e accattivante)", "analysis": "string", "distance": "string", "url": "string (URL REALE obbligatorio)"}], 
-          "priceHistory": [{"year": "string", "price": number}] 
-        } 
-      },
-      "renovation_potential": { 
-        "title": "Ristrutturazione", 
-        "summary": "string", 
-        "score": number (1-10), 
-        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
-        "recommendation": "string",
-        "renovation": {
-          "totalCost": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
-          "valueIncrease": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
-          "roi": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
-          "timeline": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
-          "breakdown": [{"category": "string", "cost": number, "description": "string", "tips": "string"}],
-          "bonuses": [{"name": "string", "value": "string", "description": "string"}]
-        }
-      },
-      "valuation": { 
-        "title": "Valutazione", 
-        "summary": "string", 
-        "score": number (1-10), 
-        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
-        "recommendation": "string",
-        "valuation": {
-          "saleStrategy": {
-            "quickSale": { "price": number, "timing": "string", "description": "string", "analysis": "string", "confidence": number },
-            "marketPrice": { "price": number, "timing": "string", "description": "string", "analysis": "string", "confidence": number },
-            "highPrice": { "price": number, "timing": "string", "description": "string", "analysis": "string", "confidence": number }
-          },
-          "buyStrategy": {
-            "idealPrice": number,
-            "maxDiscount": number,
-            "riskLevel": "low | medium | high",
-            "advice": "string",
-            "analysis": "string",
-            "negotiationPoints": ["string"]
-          },
-          "comparables": [{"address": "string", "price": number, "sqm": number, "similarity": number, "url": "string"}],
-          "marketTrend": [{"year": "string", "value": number, "volume": number}]
-        }
-      },
-      "investment": { 
-        "title": "Investimento", 
-        "summary": "string", 
-        "score": number (1-10), 
-        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
-        "recommendation": "string",
-        "financials": {
-          "grossYield": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
-          "netYield": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
-          "cashFlowMonthly": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
-          "capRate": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
-          "totalInvestment": { "value": number, "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" }
-        },
-        "expenses": { "condoFees": number, "tax": number, "maintenance": number, "management": number, "utilities": number },
-        "scenarios": { "longTerm": { "rentMonthly": number, "occupancyRate": number, "cashFlowYearly": number }, "shortTerm": { "adr": number, "occupancyRate": number, "cashFlowYearly": number } },
-        "shortTermData": { "seasonality": { "winter": {"occupancy": number, "rate": number}, "spring": {"occupancy": number, "rate": number}, "summer": {"occupancy": number, "rate": number}, "autumn": {"occupancy": number, "rate": number} }, "risks": ["string"] }
-      },
-      "rental_yield": { 
-        "title": "Rendita", 
-        "summary": "string", 
-        "score": number (1-10), 
-        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
-        "recommendation": "string" 
-      },
-      "legal_tax": { 
-        "title": "Legale", 
-        "summary": "string", 
-        "score": number (1-10), 
-        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
-        "recommendation": "string",
-        "legal": {
-          "zoning": { "value": "string", "explanation": "string", "breakdown": [{"label": "string", "value": number}], "trend": [{"year": "string", "value": number}], "benchmark": {"label": "string", "value": number}, "recommendation": "string" },
-          "cadastral": { "category": "string", "income": number, "explanation": "string" },
-          "taxes": [{"name": "string", "amount": "string", "explanation": "string"}],
-          "permits": [{"name": "string", "status": "string", "explanation": "string"}],
-          "regulations": [{"name": "string", "description": "string"}]
-        }
-      },
-      "ai_verdict": { 
-        "title": "Verdetto AI", 
-        "summary": "string", 
-        "score": number (1-10), 
-        "details": [{"label": "string", "value": "string | number", "explanation": "string"}], 
-        "recommendation": "string",
-        "verdict": {
-          "pros": ["string"],
-          "cons": ["string"],
-          "buyStrategy": { "title": "string", "description": "string", "riskLevel": "low | medium | high" },
-          "suitability": [{"type": "investor | family | young_couple", "score": number, "reason": "string"}],
-          "finalScore": { "value": number, "label": "string", "description": "string" }
-        }
-      }
-    }
-  }
-  `;
-
-  const systemInstruction = `
-    Sei un "Real Estate Scout" d'élite, specializzato in analisi di mercato iper-realistiche.
-    Il tuo obiettivo è fornire una valutazione basata ESCLUSIVAMENTE su dati verificabili e attuali.
-
-    *** 1. COMPARABLES: TOLLERANZA ZERO PER IL VECCHIO ***
-    - **SOLO ANNUNCI ATTIVI**: Cerca immobili attualmente in vendita. Ignora tutto ciò che è "venduto" o anteriore a 6 mesi.
-    - **INDAGINE INDIRIZZO**:
-      - I portali nascondono il civico. Tu devi dedurlo: "di fronte alla farmacia X", "vicino al parco Y".
-      - Se impossibile, usa la VIA ESATTA.
-      - FORMATO: "Via Roma 15" (Ottimo) > "Via Roma" (Accettabile) > "Zona Centro" (INACCETTABILE).
-    - **STRATEGIA DI RICERCA**:
-      - Cerchio 1 (Gold): < 500m, stesso tipo, +/- 20% mq.
-      - Cerchio 2 (Silver): < 1.5km, stesso tipo.
-      - Cerchio 3 (Bronze): Stesso comune, caratteristiche simili (solo se disperato).
-
-    *** 2. INTELLIGENCE NOTIZIE (Time-Aware Analysis) ***
-    - **ANALISI**: Leggi notizie degli ultimi 3-5 anni per capire i trend (es. "la criminalità è scesa?", "il quartiere si sta riqualificando?").
-    - **OUTPUT**: Nel campo "news", inserisci SOLO link a notizie degli ultimi 12 mesi.
-    - **PUNTEGGIO**: Il punteggio (1-10) deve riflettere l'analisi storica, non solo l'ultima notizia.
-
-    *** 3. DETTAGLI GRANULARI E QUANTIFICATI ***
-    - Mai dire "Ci sono scuole".
-    - Dì: "3 Scuole Elementari entro 600m (Scuola X, Scuola Y)".
-    - Mai dire "Buoni collegamenti".
-    - Dì: "Fermata Bus 42 a 150m, Stazione Treni a 1.2km".
-
-    *** 4. STRATEGIA DI RICERCA GOOGLE (Query Avanzate) ***
-    - **Mercato**: 
-      - "site:immobiliare.it vendita ${address.address.city} ${address.address.road} annunci recenti"
-      - "site:idealista.it vendita ${address.address.city} ${address.address.road} dopo:2024"
-      - "vendita ${details.type} ${address.address.city} zona ${address.address.road}"
-    - **Sicurezza**: 
-      - "criminalità ${address.address.city} ${address.address.road} ultime notizie"
-      - "furti appartamenti ${address.address.city} quartiere statistiche"
-    - **Ambiente/Riqualificazione**: 
-      - "progetti riqualificazione ${address.address.city} ${address.address.road}"
-      - "inquinamento acustico ${address.address.city} mappa"
-
-    *** 5. GUIDA JSON RIGIDA ***
-    - **comparables**: Devono avere URL REALI e FUNZIONANTI.
-    - **valuation**:
-      - "saleStrategy": Analisi spietata. Se la casa è da ristrutturare, il prezzo "quickSale" deve essere aggressivo.
-      - "buyStrategy": Trova ogni difetto (rumore, piano basso, no ascensore) per negoziare.
-    - **sections**: Ogni sezione (Crime, Environment, etc.) DEVE avere almeno 4 "details" specifici.
-  `;
-
-  const userPrompt = `
-    Dati Immobile Target:
+  // --- STEP 1: LOCATION INTELLIGENCE ---
+  console.log("STEP 1: Fetching Location Data...");
+  const locationPrompt = `
+    You are an expert real estate location analyst. Analyze the area of this property:
     ${propertyContext}
 
-    OBIETTIVO: Report Immobiliare Esecutivo.
+    OBJECTIVE: Provide detailed data on Safety, Environment, Connectivity, Amenities, Demographics, and Legal aspects.
     
-    1. **CACCIA AI COMPARABLES**:
-       - Trova 4 immobili in vendita ORA.
-       - Se non trovi l'esatto vicino, allarga il raggio ma mantieni la tipologia.
-       - URL obbligatori.
-    
-    2. **ANALISI PROFONDA**:
-       - Sicurezza: Cerca fatti di cronaca specifici.
-       - Ambiente: Cerca parchi, ZTL, traffico.
-       - Servizi: Conta supermercati e scuole.
-    
-    3. **OUTPUT JSON**:
-       - Compila TUTTI i campi.
-       - Sii critico e realista nelle stime.
-    
-    Genera il JSON seguendo questa struttura:
-    ${jsonStructure}
+    INSTRUCTIONS:
+    1. Safety: Search for crime news in the last 3 YEARS in the specific neighborhood.
+    2. Amenities: Be specific. Provide names and distances of real schools, supermarkets, etc.
+    3. Connectivity: List EACH transit line (Bus, Metro, Tram) as a SEPARATE object in the 'transitLines' array. Do NOT group them.
+    4. Demographics: Estimate based on the neighborhood data.
+    5. Legal: Indicate probable zoning and estimated taxes.
+    6. SUMMARY: For each section, write a "summary" of 1-2 sentences summarizing the situation in Italian.
+    7. LANGUAGE: All text fields (summaries, explanations, recommendations) MUST be in ITALIAN.
+
+    OUTPUT: Valid JSON conforming to this structure:
+    ${locationJsonStructure}
   `;
 
-  try {
-    console.log("GENERATED PROMPT:", systemInstruction + "\n" + userPrompt);
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [
-        { role: "user", parts: [{ text: systemInstruction + "\n" + userPrompt }] }
-      ],
-      config: {
-        // ABILITIAMO GOOGLE SEARCH GROUNDING
-        tools: [{ googleSearch: {} }],
-        // Rimuoviamo responseSchema rigido per permettere l'uso dei tool e la flessibilità della ricerca
-        // responseMimeType: "application/json", 
+  // Helper for retry logic
+  const generateWithRetry = async (prompt: string, retries = 3): Promise<any> => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        return await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          config: {
+            tools: [{ googleSearch: {} }],
+            // responseMimeType: "application/json" // REMOVED: Conflicts with tools
+          }
+        });
+      } catch (error: any) {
+        if (error.message?.includes("503") || error.message?.includes("overloaded")) {
+          console.warn(`Attempt ${i + 1} failed (503 Overloaded). Retrying in ${(i + 1) * 2}s...`);
+          await delay((i + 1) * 2000); // Exponential backoff: 2s, 4s, 6s
+          continue;
+        }
+        throw error; // Throw other errors immediately
       }
-    });
+    }
+    throw new Error("Service unavailable after multiple attempts. Please try again later.");
+  };
 
-    let text = response.text;
-    console.log("RAW RESPONSE:", text);
-    if (!text) throw new Error("Nessun dato ricevuto dall'AI");
+  try {
+    const locationResponse = await generateWithRetry(locationPrompt);
 
-    // Pulizia del testo per estrarre il JSON (Gemini con Tools a volte chatta o usa markdown)
-    text = text.replace(/```json\s*/g, '').replace(/```/g, '').trim();
+    const locationText = typeof locationResponse.text === 'function' ? locationResponse.text() : locationResponse.text;
+    const locationData = JSON.parse(cleanJson(locationText || "{}"));
 
-    // Cerchiamo l'inizio e la fine del JSON
-    const jsonStart = text.indexOf('{');
-    const jsonEnd = text.lastIndexOf('}');
-    if (jsonStart !== -1 && jsonEnd !== -1) {
-      text = text.substring(jsonStart, jsonEnd + 1);
+    // Add delay to avoid hitting rate limits (429)
+    await delay(2000);
+
+    // --- STEP 2: MARKET INTELLIGENCE ---
+    console.log("STEP 2: Fetching Market Data...");
+    const marketPrompt = `
+      You are an expert real estate appraiser. Analyze the market for this property:
+      ${propertyContext}
+
+      OBJECTIVE: Find REAL comparables and market data.
+
+      STRICT RULES FOR COMPARABLES:
+      - YOU MUST USE the 'googleSearch' tool.
+      - ONLY use results from:
+        - immobiliare.it (single listings, NOT search results pages)
+        - idealista.it (single listings, NOT search results pages)
+      - COPY the URL EXACTLY as it appears in the search result.
+      - NEVER invent URLs, IDs, addresses, or prices.
+      - If you do not find valid listings, return "comparables": [] (empty array).
+
+      VALID URL FORMATS (GUIDA):
+      - immobiliare.it: deve contenere "/annunci/" e un numero ID.
+      - idealista.it: deve contenere "/immobile/" e un numero ID.
+
+      VERIFICATION PROCESS (CRITICAL):
+      - For each candidate URL, you MUST verify the page content/snippet.
+      - **CHECK FOR EXPIRED STATUS**: Look for keywords like "Venduto", "Scaduto", "Rimosso", "Non disponibile", "Archiviato", "Sotto offerta".
+      - **ACTION**: If the listing is expired or sold, **DISCARD IT IMMEDIATELY**. Do not include it in the JSON.
+      - **FALSE POSITIVES**: If you are unsure if it's active, DISCARD IT.
+
+      QUANTITY:
+      - Target: up to 4 comparables.
+      - If you find fewer, that is fine.
+      - NEVER INVENT data.
+
+      LANGUAGE: Italian.
+
+      OUTPUT: Valid JSON conforming to this structure:
+      ${marketJsonStructure}
+    `;
+
+    const marketResponse = await generateWithRetry(marketPrompt);
+
+    const marketText = typeof marketResponse.text === 'function' ? marketResponse.text() : marketResponse.text;
+    const marketData = JSON.parse(cleanJson(marketText || "{}"));
+
+    // --- SMART VALIDATION ---
+    const isValidListingUrl = (url: string): boolean => {
+      if (!url) return false;
+
+      try {
+        const u = new URL(url);
+        const host = u.hostname.replace(/^www\./, "");
+        const path = u.pathname;
+
+        // idealista.it: cerchiamo "/immobile/" seguito da numeri
+        // Es: /immobile/12345/ o /immobile/12345
+        if (host === "idealista.it") {
+          return /\/immobile\/.*\d+/.test(path);
+        }
+
+        // immobiliare.it: cerchiamo "/annunci/" seguito da numeri
+        // Es: /annunci/12345/ o /annunci/12345-titolo-slug
+        if (host === "immobiliare.it") {
+          return /\/annunci\/.*\d+/.test(path);
+        }
+
+        return false;
+      } catch {
+        return false;
+      }
+    };
+
+    if (marketData.comparables && Array.isArray(marketData.comparables)) {
+      marketData.comparables = marketData.comparables.filter((c: any) => {
+        if (!c || typeof c !== "object") return false;
+        if (!isValidListingUrl(c.url)) return false;
+
+        // sanity check numeri
+        if (typeof c.price !== "number" || c.price <= 0) return false;
+        if (typeof c.sqm !== "number" || c.sqm <= 0) return false;
+
+        // calcolo o ricontrollo pricePerSqm
+        c.pricePerSqm = Math.round(c.price / c.sqm);
+
+        return true;
+      });
     }
 
-    const parsedData = JSON.parse(text);
-
-    // Validazione base
-    if (!parsedData.overview || !parsedData.sections) {
-      throw new Error("Struttura JSON non valida ricevuta dall'AI");
+    const validComparables = marketData.comparables || [];
+    if (validComparables.length === 0) {
+      console.warn("Nessun comparable valido trovato, uso solo dati di zona.");
     }
 
-    return parsedData as ReportData;
+
+    // --- STEP 3: DETERMINISTIC CALCULATIONS ---
+    console.log("STEP 3: Calculating Financials...");
+
+    // 3.1 Valuation
+    const valuation = calculateValuation(
+      details,
+      validComparables, // Use filtered comparables
+      marketData.marketData?.realAdvisorPricePerSqm
+    );
+
+    // 3.2 Expenses
+    const expenses = calculateExpenses(valuation.estimatedValue, details.sqm);
+
+    // 3.3 Scenarios
+    const longTerm = calculateLongTermScenario(
+      valuation.estimatedValue,
+      marketData.rent?.longTermMonthly || 1000,
+      expenses
+    );
+
+    const shortTerm = calculateShortTermScenario(
+      valuation.estimatedValue,
+      marketData.rent?.shortTermDaily || 80,
+      expenses
+    );
+
+    // 3.4 Renovation
+    const renovation = calculateRenovationPotential(
+      valuation.estimatedValue,
+      details.sqm,
+      details.condition
+    );
+
+    // --- STEP 4: MERGE & RETURN ---
+    console.log("STEP 4: Merging Data...");
+
+    const report: ReportData = {
+      overview: {
+        estimatedValue: valuation.estimatedValue,
+        valueRange: valuation.valueRange,
+        pricePerSqm: valuation.pricePerSqm,
+        confidence: 0.85 // High confidence due to hybrid approach
+      },
+      sections: {
+        valuation: {
+          title: "Valutazione",
+          content: "", // Added to fix type error
+          summary: `Valore stimato di € ${valuation.estimatedValue.toLocaleString()} basato su ${validComparables.length} comparabili e dati di zona.`,
+          score: 8, // Placeholder, could be calculated
+          details: [
+            { label: "Prezzo/mq Stimato", value: `€ ${valuation.pricePerSqm}`, explanation: "Media ponderata comparables e dati di zona" },
+            { label: "Range Valore", value: `€ ${valuation.valueRange[0].toLocaleString()} - ${valuation.valueRange[1].toLocaleString()}`, explanation: "Forchetta di oscillazione +/- 10%" }
+          ],
+          recommendation: marketData.verdict?.recommendation || "Valutare offerta in linea con il mercato.",
+          valuation: {
+            saleStrategy: {
+              quickSale: { price: valuation.valueRange[0], timing: "1-2 Mesi", description: "Prezzo aggressivo per vendita rapida", analysis: "Sconto del 10% sul valore di mercato", confidence: 0.9 },
+              marketPrice: { price: valuation.estimatedValue, timing: "3-6 Mesi", description: "Prezzo di mercato corretto", analysis: "Allineato ai comparables", confidence: 0.8 },
+              highPrice: { price: valuation.valueRange[1], timing: "6+ Mesi", description: "Prezzo amatoriale", analysis: "Richiede acquirente specifico", confidence: 0.6 }
+            },
+            buyStrategy: {
+              idealPrice: valuation.valueRange[0],
+              maxDiscount: 15,
+              riskLevel: "medium",
+              advice: "Puntare al ribasso facendo leva sui lavori da fare",
+              analysis: "Margine di trattativa presente",
+              negotiationPoints: ["Stato conservativo", "Prezzi comparabili inferiori"]
+            },
+            comparables: validComparables.map((c: any) => ({ ...c, similarity: 85 })),
+            marketTrend: []
+          }
+        },
+        investment: {
+          title: "Investimento",
+          content: "", // Added to fix type error
+          summary: `Rendimento lordo stimato del ${longTerm.metrics.grossYield.value}% (Lungo Termine) vs ${shortTerm.metrics.grossYield}% (Short Rent).`,
+          score: longTerm.metrics.netYield.value > 4 ? 8 : 5,
+          details: [
+            { label: "Yield Netto (Lungo)", value: `${longTerm.metrics.netYield.value}%`, explanation: "Rendimento netto annuale affitto 4+4" },
+            { label: "Cashflow (Lungo)", value: `€ ${longTerm.metrics.cashFlowMonthly.value}`, explanation: "Flusso di cassa mensile" },
+            { label: "Yield Netto (Short)", value: `${shortTerm.metrics.netYield}%`, explanation: "Rendimento netto annuale affitto breve" }
+          ],
+          recommendation: longTerm.metrics.netYield.value > shortTerm.metrics.netYield ? "Strategia Lungo Termine Consigliata" : "Strategia Short Rent Consigliata",
+          financials: longTerm.metrics,
+          expenses: expenses,
+          scenarios: {
+            longTerm: longTerm.scenario,
+            shortTerm: shortTerm.scenario
+          },
+          // Fallbacks for UI components that might expect these
+          longTermData: { advantages: ["Rendita stabile", "Gestione semplice"], risks: ["Morosità", "Vincolo lungo"], contractType: "4+4", tenantRisk: "medium" },
+          shortTermData: { seasonality: { winter: { occupancy: 50, rate: 80 }, spring: { occupancy: 70, rate: 100 }, summer: { occupancy: 90, rate: 120 }, autumn: { occupancy: 60, rate: 90 } }, risks: ["Vacanza", "Gestione impegnativa"] }
+        },
+        market_comps: {
+          title: "Mercato",
+          content: "", // Added to fix type error
+          summary: "Analisi dei comparabili di zona.",
+          score: 7,
+          details: [],
+          marketData: {
+            pricePerSqm: { value: valuation.pricePerSqm, explanation: "Prezzo al mq stimato" },
+            averageDaysOnMarket: marketData.marketData?.averageDaysOnMarket || { value: 90, explanation: "Media zona" },
+            demandIndex: marketData.marketData?.demandIndex || { value: 70, explanation: "Media" },
+            supplyIndex: { value: 50, explanation: "Media" },
+            priceGrowthForecast: marketData.marketData?.priceGrowthForecast || { value: 2, explanation: "Stabile" },
+            comparables: validComparables,
+            priceHistory: []
+          }
+        },
+        renovation_potential: {
+          title: "Ristrutturazione",
+          content: "", // Added to fix type error
+          summary: `Potenziale ROI del ${renovation.roi}% con ristrutturazione.`,
+          score: renovation.roi > 15 ? 9 : 6,
+          details: [
+            { label: "Costo Stimato", value: `€ ${renovation.totalCost.toLocaleString()}`, explanation: "Basato su mq e condizioni" },
+            { label: "Incremento Valore", value: `€ ${renovation.valueIncrease.toLocaleString()}`, explanation: "Valore futuro - Valore attuale" }
+          ],
+          recommendation: renovation.roi > 20 ? "Ristrutturazione Fortemente Consigliata" : "Ristrutturazione Opzionale",
+          renovation: {
+            totalCost: { value: renovation.totalCost, explanation: "Costo totale lavori" },
+            valueIncrease: { value: renovation.valueIncrease, explanation: "Plusvalenza generata" },
+            roi: { value: renovation.roi, explanation: "Ritorno sull'investimento" },
+            timeline: { value: "3-6 Mesi", explanation: "Durata stimata lavori" },
+            breakdown: [],
+            bonuses: []
+          }
+        },
+        crime: { ...locationData.crime, content: "" } || { title: "Sicurezza", content: "", score: 5, details: [], summary: "Dati non disponibili", recommendation: "Verificare in loco" },
+        environment: { ...locationData.environment, content: "" } || { title: "Ambiente", content: "", score: 5, details: [], summary: "Dati non disponibili", recommendation: "Verificare in loco" },
+        connectivity: { ...locationData.connectivity, content: "" } || { title: "Connettività", content: "", score: 5, details: [], summary: "Dati non disponibili", recommendation: "Verificare in loco", connectivity: { mobilityScore: { value: 5, explanation: "" }, transitLines: [], airports: [], highways: [], commuteTimes: [] } },
+        amenities: { ...locationData.amenities, content: "" } || { title: "Servizi", content: "", score: 5, details: [], summary: "Dati non disponibili", recommendation: "Verificare in loco", amenities: { serviceScore: { value: 5, explanation: "" }, schools: [], supermarkets: [], pharmacies: [], lifestyle: [] } },
+        demographics: { ...locationData.demographics, content: "" } || { title: "Demografia", content: "", score: 5, details: [], summary: "Dati non disponibili", recommendation: "Verificare in loco", demographics: { populationDensity: { value: 0, explanation: "" }, averageAge: { value: 0, explanation: "" }, incomeLevel: { value: 0, explanation: "" }, educationLevel: { value: 0, explanation: "" }, ageDistribution: [], householdComposition: [] } },
+        legal_tax: { ...locationData.legal_tax, content: "" } || { title: "Legale & Tasse", content: "", score: 5, details: [], summary: "Dati non disponibili", recommendation: "Verificare in loco", legal: { zoning: { value: "", explanation: "" }, cadastral: { category: "", income: 0, explanation: "" }, taxes: [], permits: [], regulations: [] } },
+        ai_verdict: {
+          title: "Verdetto AI",
+          content: "", // Added to fix type error
+          summary: marketData.verdict?.recommendation || "Analisi completata.",
+          score: marketData.verdict?.finalScore?.value || 7,
+          details: [],
+          recommendation: marketData.verdict?.recommendation || "",
+          verdict: marketData.verdict || { pros: [], cons: [], buyStrategy: { title: "", description: "", riskLevel: "medium" }, suitability: [], finalScore: { value: 7, label: "Buono", description: "" }, recommendation: "" }
+        },
+        // Placeholder for rental_yield section if needed by UI, though Investment covers it
+        rental_yield: { title: "Rendita", content: "", summary: "", score: 0, details: [] }
+      }
+    };
+
+    return report;
+
   } catch (error: any) {
-    console.error("Gemini API Error Full:", error);
-    console.error("Error Name:", error.name);
-    console.error("Error Message:", error.message);
-    if (error.status) console.error("Error Status:", error.status);
-    if (error.statusText) console.error("Error Status Text:", error.statusText);
-    if (error.response?.text) console.error("Raw Text received:", error.response.text);
-    throw error;
+    console.error("Errore generazione report:", error);
+    throw new Error(`Errore durante la generazione del report: ${error.message}`);
   }
 };
