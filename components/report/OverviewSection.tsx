@@ -31,19 +31,19 @@ const OverviewSection = ({ data }: { data: ReportData }) => {
                 whileHover={{ y: -5, scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={onClick}
-                className={`glass-panel p-5 rounded-2xl border ${c.border} bg-[#0f111a]/80 backdrop-blur-md hover:bg-[#1a1d2d] transition-all group cursor-pointer relative overflow-hidden shadow-lg ${c.glow}`}
+                className={`glass-panel p-4 md:p-5 rounded-2xl border ${c.border} bg-[#0f111a]/80 backdrop-blur-md hover:bg-[#1a1d2d] transition-all group cursor-pointer relative overflow-hidden shadow-lg ${c.glow}`}
             >
                 <div className={`absolute right-0 top-0 p-16 rounded-full opacity-5 bg-gradient-to-br ${c.gradient} blur-2xl`}></div>
-                <div className="flex justify-between items-start mb-4 relative z-10">
-                    <div className={`p-3 rounded-xl bg-black/40 ${c.text} border border-white/5`}>
-                        <Icon className="w-5 h-5" />
+                <div className="flex justify-between items-start mb-3 md:mb-4 relative z-10">
+                    <div className={`p-2.5 md:p-3 rounded-xl bg-black/40 ${c.text} border border-white/5`}>
+                        <Icon className="w-4 h-4 md:w-5 md:h-5" />
                     </div>
                     <ArrowUpRight className="w-4 h-4 text-gray-600 group-hover:text-white transition-colors" />
                 </div>
                 <div className="relative z-10">
-                    <span className="text-gray-400 text-xs font-bold uppercase tracking-wider block mb-1">{label}</span>
-                    <span className="text-xl md:text-2xl font-bold text-white block tracking-tight truncate">{value}</span>
-                    <span className="text-[10px] text-gray-500 mt-2 block font-medium uppercase tracking-wide">{sub}</span>
+                    <span className="text-gray-400 text-[10px] md:text-xs font-bold uppercase tracking-wider block mb-1">{label}</span>
+                    <span className="text-lg md:text-xl lg:text-2xl font-bold text-white block tracking-tight truncate">{value}</span>
+                    <span className="text-[10px] text-gray-500 mt-1 md:mt-2 block font-medium uppercase tracking-wide truncate">{sub}</span>
                 </div>
             </motion.div>
         )
@@ -340,30 +340,32 @@ const OverviewSection = ({ data }: { data: ReportData }) => {
         }
 
         return (
+
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+                className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center lg:p-4 bg-black/80 backdrop-blur-md"
                 onClick={() => setActiveModal(null)}
             >
                 <motion.div
-                    initial={{ scale: 0.95, opacity: 0, y: 20 }}
-                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                    exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                    initial={{ y: '100%', opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: '100%', opacity: 0 }}
+                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
                     onClick={(e) => e.stopPropagation()}
-                    className={`bg-[#0f111a] border border-white/5 w-full max-w-lg rounded-[2rem] overflow-hidden shadow-2xl ring-1 ring-white/5`}
+                    className={`bg-[#0f111a] border-t lg:border border-white/10 w-full max-w-lg rounded-t-[2.5rem] lg:rounded-[2rem] overflow-hidden shadow-2xl ring-1 ring-white/5 max-h-[75vh] flex flex-col`}
                 >
-                    <div className={`p-6 border-b border-white/5 bg-gradient-to-r ${getColors(color).gradient} flex justify-between items-center`}>
+                    <div className={`p-6 border-b border-white/5 bg-gradient-to-r ${getColors(color).gradient} flex justify-between items-center shrink-0`}>
                         <h3 className="text-lg font-bold text-white tracking-wide">{title}</h3>
                         <button onClick={() => setActiveModal(null)} className="p-2 rounded-full bg-black/20 hover:bg-black/40 text-white transition-colors border border-white/5">
                             <X className="w-4 h-4" />
                         </button>
                     </div>
-                    <div className="p-6">
+                    <div className="p-6 pb-24 overflow-y-auto">
                         {content}
                     </div>
-                    <div className="p-4 border-t border-white/5 bg-[#0a0c12] text-center">
+                    <div className="p-4 border-t border-white/5 bg-[#0a0c12] text-center shrink-0 safe-area-bottom hidden">
                         <button onClick={() => setActiveModal(null)} className="text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-colors flex items-center justify-center gap-2 mx-auto">
                             Chiudi Scheda <ChevronRight className="w-3 h-3" />
                         </button>
@@ -371,6 +373,7 @@ const OverviewSection = ({ data }: { data: ReportData }) => {
                 </motion.div>
             </motion.div>
         );
+
     };
 
     // Robust data extraction with fallbacks
@@ -386,12 +389,12 @@ const OverviewSection = ({ data }: { data: ReportData }) => {
     const marketData = sections.market_comps.marketData;
 
     return (
-        <div className="max-w-7xl w-full animate-fade-in-up relative">
+        <div className="max-w-7xl w-full animate-fade-in-up relative pb-20 md:pb-0">
             <AnimatePresence>
                 {activeModal && <Modal />}
             </AnimatePresence>
 
-            <div className="mb-10 text-center lg:text-left">
+            <div className="mb-6 md:mb-10 text-center lg:text-left pt-4 md:pt-0">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 mb-3">
                     <span className="relative flex h-2 w-2">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
@@ -399,55 +402,55 @@ const OverviewSection = ({ data }: { data: ReportData }) => {
                     </span>
                     <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Analisi Completata</span>
                 </div>
-                <h1 className="text-4xl md:text-6xl font-bold mb-2 text-white">
+                <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-2 text-white">
                     Report <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500">Esecutivo</span>
                 </h1>
-                <p className="text-gray-400 max-w-xl">Sintesi strategica interattiva. Clicca sulle schede per i dettagli.</p>
+                <p className="text-gray-400 text-sm md:text-base max-w-xl mx-auto lg:mx-0">Sintesi strategica interattiva. Clicca sulle schede per i dettagli.</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 mb-4 md:mb-8">
                 {/* MARKET INTELLIGENCE HUB (Main Card) */}
                 <motion.div
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
                     onClick={() => setActiveModal('valuation')}
-                    className="lg:col-span-8 glass-panel p-8 md:p-10 rounded-[2.5rem] border border-blue-500/20 bg-[#0f111a]/80 backdrop-blur-xl relative overflow-hidden group cursor-pointer shadow-2xl shadow-blue-900/10"
+                    className="lg:col-span-8 glass-panel p-4 md:p-10 rounded-[1.5rem] md:rounded-[2.5rem] border border-blue-500/20 bg-[#0f111a]/80 backdrop-blur-xl relative overflow-hidden group cursor-pointer shadow-2xl shadow-blue-900/10"
                 >
                     <div className="absolute right-0 top-0 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] group-hover:bg-blue-600/15 transition-all duration-700"></div>
 
-                    <div className="relative z-10 flex flex-col h-full justify-between">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div className="relative z-10 flex flex-col h-full justify-between gap-6 md:gap-0">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 md:mb-8 hover:brightness-110 transition-all">
                             <div className="flex items-center gap-3">
-                                <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-400 border border-blue-500/20">
-                                    <Building2 className="w-6 h-6" />
+                                <div className="p-2 md:p-3 bg-blue-500/10 rounded-2xl text-blue-400 border border-blue-500/20">
+                                    <Building2 className="w-5 h-5 md:w-6 md:h-6" />
                                 </div>
                                 <div>
-                                    <span className="block text-blue-300 font-bold uppercase tracking-widest text-xs">Market Intelligence</span>
-                                    <span className="text-gray-400 text-xs">Algoritmo Comparativo v2.4</span>
+                                    <span className="block text-blue-300 font-bold uppercase tracking-widest text-[10px] md:text-xs">Market Intelligence</span>
+                                    <span className="text-gray-400 text-[10px] md:text-xs">Algoritmo Comparativo v2.4</span>
                                 </div>
                             </div>
-                            <div className="px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                            <div className="self-start md:self-auto px-3 py-1 md:px-4 md:py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] md:text-xs font-bold uppercase tracking-wider flex items-center gap-2">
                                 <TrendingUp className="w-3 h-3" />
                                 Alta Confidenza
                             </div>
                         </div>
 
-                        <div className="mb-8">
-                            <h2 className="text-5xl md:text-7xl font-bold text-white tracking-tight mb-2">
+                        <div className="mb-4 md:mb-8">
+                            <h2 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white tracking-tight mb-2">
                                 € {overview.estimatedValue.toLocaleString()}
                             </h2>
-                            <div className="flex items-center gap-2 text-gray-400 text-sm md:text-base">
+                            <div className="flex items-center gap-2 text-gray-400 text-xs md:text-sm md:text-base">
                                 <Activity className="w-4 h-4" />
                                 <span>Range: <span className="text-white font-bold">€ {overview.valueRange[0].toLocaleString()} - € {overview.valueRange[1].toLocaleString()}</span></span>
                             </div>
                         </div>
 
                         {/* KPI GRID */}
-                        <div className="mt-auto pt-6 border-t border-white/5 grid grid-cols-2 md:grid-cols-4 gap-6">
+                        <div className="mt-auto pt-4 md:pt-6 border-t border-white/5 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
                             <div>
-                                <span className="text-gray-500 text-[10px] font-bold uppercase tracking-widest block mb-1">Prezzo al Mq</span>
+                                <span className="text-gray-500 text-[10px] font-bold uppercase tracking-widest block mb-1">Prezzo/Mq</span>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-lg font-bold text-white">€ {Math.round(overview.pricePerSqm).toLocaleString()}</span>
+                                    <span className="text-base md:text-lg font-bold text-white">€ {Math.round(overview.pricePerSqm).toLocaleString()}</span>
                                     {marketData?.priceGrowthForecast.value && Number(marketData.priceGrowthForecast.value) > 0 ? (
                                         <TrendingUp className="w-3 h-3 text-emerald-400" />
                                     ) : (
@@ -458,21 +461,21 @@ const OverviewSection = ({ data }: { data: ReportData }) => {
                             <div>
                                 <span className="text-gray-500 text-[10px] font-bold uppercase tracking-widest block mb-1">Tempo Vendita</span>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-lg font-bold text-white">{marketData?.averageDaysOnMarket.value || "N/A"} gg</span>
+                                    <span className="text-base md:text-lg font-bold text-white">{marketData?.averageDaysOnMarket.value || "N/A"} gg</span>
                                     <Clock className="w-3 h-3 text-blue-400" />
                                 </div>
                             </div>
                             <div>
                                 <span className="text-gray-500 text-[10px] font-bold uppercase tracking-widest block mb-1">Domanda</span>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-lg font-bold text-white">{marketData?.demandIndex.value || "N/A"}/100</span>
+                                    <span className="text-base md:text-lg font-bold text-white">{marketData?.demandIndex.value || "N/A"}/100</span>
                                     <BarChart3 className="w-3 h-3 text-fuchsia-400" />
                                 </div>
                             </div>
                             <div>
                                 <span className="text-gray-500 text-[10px] font-bold uppercase tracking-widest block mb-1">Previsione</span>
                                 <div className="flex items-center gap-2">
-                                    <span className={`text-lg font-bold ${Number(marketData?.priceGrowthForecast.value) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    <span className={`text-base md:text-lg font-bold ${Number(marketData?.priceGrowthForecast.value) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                         {Number(marketData?.priceGrowthForecast.value) > 0 ? '+' : ''}{marketData?.priceGrowthForecast.value || 0}%
                                     </span>
                                 </div>
@@ -486,24 +489,24 @@ const OverviewSection = ({ data }: { data: ReportData }) => {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setActiveModal('verdict')}
-                    className="lg:col-span-4 glass-panel p-8 rounded-[2.5rem] border border-fuchsia-500/20 bg-[#0f111a]/80 backdrop-blur-xl flex flex-col items-center justify-center relative overflow-hidden text-center group hover:border-fuchsia-500/30 transition-all cursor-pointer shadow-2xl shadow-fuchsia-900/10"
+                    className="lg:col-span-4 glass-panel p-4 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-fuchsia-500/20 bg-[#0f111a]/80 backdrop-blur-xl flex flex-col items-center justify-center relative overflow-hidden text-center group hover:border-fuchsia-500/30 transition-all cursor-pointer shadow-2xl shadow-fuchsia-900/10"
                 >
                     <div className="absolute inset-0 bg-fuchsia-500/5 blur-[40px] group-hover:bg-fuchsia-500/10 transition-all duration-700"></div>
 
                     <div className="relative z-10 w-full h-full flex flex-col items-center justify-center">
-                        <div className="w-40 h-40 relative flex items-center justify-center mb-6">
+                        <div className="w-32 h-32 md:w-40 md:h-40 relative flex items-center justify-center mb-4 md:mb-6">
                             <div className="absolute inset-0 rounded-full border-8 border-white/5"></div>
                             <div
                                 className="absolute inset-0 rounded-full border-8 border-fuchsia-500 border-t-transparent border-l-transparent"
                                 style={{ transform: `rotate(${(sections.ai_verdict.score / 10) * 360}deg)`, transition: 'transform 1s ease-out' }}
                             ></div>
                             <div className="flex flex-col items-center">
-                                <span className="text-6xl font-bold text-white tracking-tighter">{sections.ai_verdict.score}</span>
-                                <span className="text-fuchsia-400 text-sm font-bold">/10</span>
+                                <span className="text-5xl md:text-6xl font-bold text-white tracking-tighter">{sections.ai_verdict.score}</span>
+                                <span className="text-fuchsia-400 text-xs md:text-sm font-bold">/10</span>
                             </div>
                         </div>
 
-                        <span className="text-fuchsia-400 text-sm font-bold uppercase tracking-widest bg-fuchsia-500/10 px-4 py-1.5 rounded-full border border-fuchsia-500/20 mb-4">
+                        <span className="text-fuchsia-400 text-[10px] md:text-sm font-bold uppercase tracking-widest bg-fuchsia-500/10 px-4 py-1.5 rounded-full border border-fuchsia-500/20 mb-3 md:mb-4">
                             Vertical Score
                         </span>
                         <p className="text-gray-400 text-xs leading-relaxed max-w-[200px] mx-auto line-clamp-3 group-hover:text-gray-200 transition-colors">
@@ -513,13 +516,13 @@ const OverviewSection = ({ data }: { data: ReportData }) => {
                 </motion.div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 lg:gap-6">
                 <SummaryWidget
                     icon={Wallet}
                     label="Rendimento"
                     value={yieldVal}
                     color="emerald"
-                    sub="Netto Annuo Stimato"
+                    sub="Netto Annuo"
                     onClick={() => setActiveModal('yield')}
                 />
                 <SummaryWidget
@@ -527,7 +530,7 @@ const OverviewSection = ({ data }: { data: ReportData }) => {
                     label="Sicurezza"
                     value={`${sections.crime.score}/10`}
                     color="red"
-                    sub="Indice Rischio Zona"
+                    sub="Indice Rischio"
                     onClick={() => setActiveModal('crime')}
                 />
                 <SummaryWidget
@@ -535,15 +538,15 @@ const OverviewSection = ({ data }: { data: ReportData }) => {
                     label="Ambiente"
                     value={`${sections.environment.score}/10`}
                     color="teal"
-                    sub="Qualità Vivibilità"
+                    sub="Vivibilità"
                     onClick={() => setActiveModal('environment')}
                 />
                 <SummaryWidget
                     icon={Hammer}
-                    label="Ristrutturazione"
+                    label="Ristruttura"
                     value={renoVal}
                     color="pink"
-                    sub="Potenziale Aggiunto"
+                    sub="Potenziale"
                     onClick={() => setActiveModal('renovation_potential')}
                 />
             </div>

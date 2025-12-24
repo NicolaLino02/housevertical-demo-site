@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { ReportData } from '../types';
 import {
-  LayoutDashboard, TrendingUp, Wallet, BarChart as ChartIcon, ShieldAlert, Leaf, Hammer, Wifi, Coffee, Users, Scale, BrainCircuit, ChevronLeft, ChevronRight, Building2
+  LayoutDashboard, TrendingUp, Wallet, BarChart as ChartIcon, ShieldAlert, Leaf, Hammer, Wifi, Coffee, Users, Scale, BrainCircuit, ChevronLeft, ChevronRight, Building2, Calculator, Shield
 } from 'lucide-react';
 
 import OverviewSection from './report/OverviewSection';
@@ -16,10 +16,14 @@ import AmenitiesSection from './report/AmenitiesSection';
 import DemographicsSection from './report/DemographicsSection';
 import LegalSection from './report/LegalSection';
 import VerdictSection from './report/VerdictSection';
+import MortgageSection from './report/MortgageSection';
+import InsuranceSection from './report/InsuranceSection';
+import LegalDisclaimer from './report/LegalDisclaimer';
 
 interface ReportViewProps {
   data: ReportData;
   onBack: () => void;
+  onOpenSurvey: () => void;
 }
 
 // Simple ErrorBoundary component
@@ -34,10 +38,6 @@ interface ErrorBoundaryState {
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false, error: null };
-
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-  }
 
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
@@ -76,6 +76,8 @@ const sectionConfig = [
   { id: 'overview', icon: LayoutDashboard, label: 'Panoramica', color: 'text-blue-400', bg: 'bg-blue-500' },
   { id: 'valuation', icon: TrendingUp, label: 'Valutazione', color: 'text-indigo-400', bg: 'bg-indigo-500' },
   { id: 'investment', icon: Wallet, label: 'Investimento', color: 'text-emerald-400', bg: 'bg-emerald-500' },
+  { id: 'mortgage_calculator', icon: Calculator, label: 'Mutuo', color: 'text-green-400', bg: 'bg-green-500' },
+  { id: 'insurance', icon: Shield, label: 'Assicurazione', color: 'text-blue-400', bg: 'bg-blue-500' },
   { id: 'market_comps', icon: ChartIcon, label: 'Mercato', color: 'text-yellow-400', bg: 'bg-yellow-500' },
   { id: 'crime', icon: ShieldAlert, label: 'Sicurezza', color: 'text-red-400', bg: 'bg-red-500' },
   { id: 'environment', icon: Leaf, label: 'Ambiente', color: 'text-teal-400', bg: 'bg-teal-500' },
@@ -87,30 +89,86 @@ const sectionConfig = [
   { id: 'ai_verdict', icon: BrainCircuit, label: 'Verdetto', color: 'text-fuchsia-500', bg: 'bg-fuchsia-500' },
 ];
 
-const ReportView: React.FC<ReportViewProps> = ({ data, onBack }) => {
+const ReportView: React.FC<ReportViewProps> = ({ data, onBack, onOpenSurvey }) => {
   return (
     <ErrorBoundary>
-      <ReportViewContent data={data} onBack={onBack} />
+      <ReportViewContent data={data} onBack={onBack} onOpenSurvey={onOpenSurvey} />
     </ErrorBoundary>
   );
 };
 
-const ReportViewContent = ({ data, onBack }: { data: ReportData, onBack: () => void }) => {
+const ReportViewContent = ({ data, onBack, onOpenSurvey }: { data: ReportData, onBack: () => void, onOpenSurvey: () => void }) => {
   const [activeSection, setActiveSection] = useState('overview');
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleNavClick = (id: string) => { setActiveSection(id); sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth' }); };
+  // Custom Scroll Logic Refs
+  const isScrolling = useRef(false);
+  const wheelAccumulator = useRef(0);
+  const lastScrollTime = useRef(0);
+  const SCROLL_THRESHOLD = 150; // Higher = Requires more scroll to switch
+  const COOLDOWN = 1000; // ms to wait before allowing another switch
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  const handleNavClick = (id: string) => {
+    setActiveSection(id);
+    sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth' });
+    // Reset accumulator on click to prevent instant double-jump
+    wheelAccumulator.current = 0;
+  };
+
   const currentSectionIndex = sectionConfig.findIndex(s => s.id === activeSection);
-  const nextSection = () => { if (currentSectionIndex < sectionConfig.length - 1) handleNavClick(sectionConfig[currentSectionIndex + 1].id); };
-  const prevSection = () => { if (currentSectionIndex > 0) handleNavClick(sectionConfig[currentSectionIndex - 1].id); };
 
+  const scrollToSection = (index: number) => {
+    if (index >= 0 && index < sectionConfig.length) {
+      const id = sectionConfig[index].id;
+      if (isScrolling.current) return;
+
+      isScrolling.current = true;
+      setActiveSection(id);
+      sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth' });
+
+      setTimeout(() => {
+        isScrolling.current = false;
+        wheelAccumulator.current = 0; // Reset after move
+      }, COOLDOWN);
+    }
+  };
+
+  // INTERSECTION OBSERVER (Keeps sidebar synced if user drags scrollbar)
   useEffect(() => {
     const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => { if (entry.isIntersecting) setActiveSection(entry.target.id); });
+      // Only update if not currently in a programmed scroll transition (to avoid flickering)
+      if (!isScrolling.current) {
+        entries.forEach(entry => {
+          if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+            setActiveSection(entry.target.id);
+          }
+        });
+      }
     }, { threshold: 0.5 });
+
     Object.values(sectionRefs.current).forEach(el => el && observer.observe(el));
     return () => observer.disconnect();
   }, []);
+
+  // SMART WHEEL HANDLER
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // DESKTOP: Native scroll is preferred. Disable custom hijacking to avoid "broken" feel.
+      // MOBILE: We don't scroll active section, we swap.
+      // Returning early effectively disables the "snap" behavior, restoring natural scrolling.
+      // We still update the header state via onScroll on the main element.
+      return;
+    };
+
+    // Non-passive listener required to use preventDefault
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, [currentSectionIndex]); // Re-bind when index changes to capture correct closure
 
   if (!data || !data.sections) {
     return (
@@ -126,45 +184,174 @@ const ReportViewContent = ({ data, onBack }: { data: ReportData, onBack: () => v
   const { overview, sections } = data;
 
   // Safe access to sections with fallbacks
-  const valuation = sections?.valuation || { title: 'Valutazione', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
-  const investment = sections?.investment || { title: 'Investimento', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
-  const market = sections?.market_comps || { title: 'Mercato', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
-  const crime = sections?.crime || { title: 'Sicurezza', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
-  const environment = sections?.environment || { title: 'Ambiente', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
-  const renovation = sections?.renovation_potential || { title: 'Ristrutturazione', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
-  const connectivity = sections?.connectivity || { title: 'Connettività', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
-  const amenities = sections?.amenities || { title: 'Servizi', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
-  const demographics = sections?.demographics || { title: 'Demografia', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
-  const legal = sections?.legal_tax || { title: 'Legale & Tasse', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
-  const verdict = sections?.ai_verdict || { title: 'Verdetto AI', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
+  const valuation = sections?.valuation || { title: 'Valutazione', content: '', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
+  const investment = sections?.investment || { title: 'Investimento', content: '', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
+  const market = sections?.market_comps || { title: 'Mercato', content: '', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
+  const crime = sections?.crime || { title: 'Sicurezza', content: '', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
+  const environment = sections?.environment || { title: 'Ambiente', content: '', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
+  const renovation = sections?.renovation_potential || { title: 'Ristrutturazione', content: '', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
+  const connectivity = sections?.connectivity || { title: 'Connettività', content: '', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
+  const amenities = sections?.amenities || { title: 'Servizi', content: '', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
+  const demographics = sections?.demographics || { title: 'Demografia', content: '', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
+  const legal = sections?.legal_tax || { title: 'Legale & Tasse', content: '', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
+  const verdict = sections?.ai_verdict || { title: 'Verdetto AI', content: '', summary: 'Dati non disponibili', score: 0, details: [], recommendation: '' };
 
   return (
-    <div className="flex h-screen bg-[#0f172a] text-white overflow-hidden font-sans selection:bg-blue-500/30">
-      <nav className="hidden lg:flex flex-col w-80 h-full border-r border-white/5 bg-[#0b1120] p-6 overflow-y-auto">
-        <div className="flex items-center gap-3 mb-10 px-2"><div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20"><Building2 className="text-white w-6 h-6" /></div><span className="font-bold text-xl tracking-tight">House Vertical</span></div>
-        <div className="space-y-2">{sectionConfig.map((item) => { const isActive = activeSection === item.id; return (<button key={item.id} onClick={() => handleNavClick(item.id)} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 group ${isActive ? 'bg-gradient-to-r from-blue-600/20 to-transparent border-l-2 border-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.15)]' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}><item.icon className={`w-5 h-5 transition-colors ${isActive ? item.color : 'text-gray-500 group-hover:text-gray-300'}`} /><span className="font-medium text-sm tracking-wide">{item.label}</span>{isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)]"></div>}</button>) })}</div>
-      </nav>
-      <main className="flex-1 h-full overflow-y-auto scroll-smooth snap-y snap-mandatory relative z-0">
-        <div className="lg:hidden fixed top-0 left-0 w-full h-24 bg-gradient-to-b from-[#0f172a] to-transparent z-10 pointer-events-none"></div>
-        <div id="overview" ref={(el) => { sectionRefs.current['overview'] = el; }} className="min-h-screen w-full flex items-center justify-center p-4 lg:p-12 snap-start pt-20 pb-32 md:pt-12 md:pb-12"><OverviewSection data={data} /></div>
-        <div id="valuation" ref={(el) => { sectionRefs.current['valuation'] = el; }} className="min-h-screen w-full flex items-center justify-center p-4 lg:p-12 snap-start pt-20 pb-32 md:pt-12 md:pb-12 bg-black/20"><ValuationSection section={valuation} data={data} /></div>
-        <div id="investment" ref={(el) => { sectionRefs.current['investment'] = el; }} className="min-h-screen w-full flex items-center justify-center p-4 lg:p-12 snap-start pt-20 pb-32 md:pt-12 md:pb-12"><InvestmentSection section={investment} /></div>
-        <div id="market_comps" ref={(el) => { sectionRefs.current['market_comps'] = el; }} className="min-h-screen w-full flex items-center justify-center p-4 lg:p-12 snap-start pt-20 pb-32 md:pt-12 md:pb-12 bg-black/20"><MarketSection section={market} data={data} /></div>
-        <div id="crime" ref={(el) => { sectionRefs.current['crime'] = el; }} className="min-h-screen w-full flex items-center justify-center p-4 lg:p-12 snap-start pt-20 pb-32 md:pt-12 md:pb-12"><CrimeSection section={crime} /></div>
-        <div id="environment" ref={(el) => { sectionRefs.current['environment'] = el; }} className="min-h-screen w-full flex items-center justify-center p-4 lg:p-12 snap-start pt-20 pb-32 md:pt-12 md:pb-12 bg-black/20"><EnvironmentSection section={environment} /></div>
-        <div id="renovation_potential" ref={(el) => { sectionRefs.current['renovation_potential'] = el; }} className="min-h-screen w-full flex items-center justify-center p-4 lg:p-12 snap-start pt-20 pb-32 md:pt-12 md:pb-12"><RenovationSection section={renovation} currentValuation={overview?.estimatedValue || 0} /></div>
-        <div id="connectivity" ref={(el) => { sectionRefs.current['connectivity'] = el; }} className="min-h-screen w-full flex items-center justify-center p-4 lg:p-12 snap-start pt-20 pb-32 md:pt-12 md:pb-12 bg-black/20"><ConnectivitySection section={connectivity} /></div>
-        <div id="amenities" ref={(el) => { sectionRefs.current['amenities'] = el; }} className="min-h-screen w-full flex items-center justify-center p-4 lg:p-12 snap-start pt-20 pb-32 md:pt-12 md:pb-12"><AmenitiesSection section={amenities} /></div>
-        <div id="demographics" ref={(el) => { sectionRefs.current['demographics'] = el; }} className="min-h-screen w-full flex items-center justify-center p-4 lg:p-12 snap-start pt-20 pb-32 md:pt-12 md:pb-12 bg-black/20"><DemographicsSection section={demographics} /></div>
-        <div id="legal_tax" ref={(el) => { sectionRefs.current['legal_tax'] = el; }} className="min-h-screen w-full flex items-center justify-center p-4 lg:p-12 snap-start pt-20 pb-32 md:pt-12 md:pb-12"><LegalSection section={legal} /></div>
-        <div id="ai_verdict" ref={(el) => { sectionRefs.current['ai_verdict'] = el; }} className="min-h-screen w-full flex items-center justify-center p-4 lg:p-12 snap-start pt-20 pb-32 md:pt-12 md:pb-12 bg-black/20"><VerdictSection section={verdict} data={data} /></div>
-      </main>
-      <div className="lg:hidden fixed bottom-0 left-0 w-full bg-[#0f172a]/90 backdrop-blur-xl border-t border-white/10 p-4 z-50 safe-area-bottom">
-        <div className="flex items-center justify-between gap-4">
-          <button onClick={prevSection} disabled={currentSectionIndex === 0} className="p-4 rounded-full bg-white/5 border border-white/10 disabled:opacity-30 active:scale-95 transition-all"><ChevronLeft className="w-6 h-6 text-white" /></button>
-          <div className="flex-1 text-center"><span className="text-xs text-blue-400 font-bold uppercase tracking-widest block mb-1">{currentSectionIndex + 1} / {sectionConfig.length}</span><h3 className="text-white font-bold text-lg leading-none">{sectionConfig[currentSectionIndex].label}</h3><div className="w-full h-1 bg-gray-800 rounded-full mt-3 overflow-hidden"><div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${((currentSectionIndex + 1) / sectionConfig.length) * 100}%` }}></div></div></div>
-          <button onClick={nextSection} disabled={currentSectionIndex === sectionConfig.length - 1} className="p-4 rounded-full bg-white/5 border border-white/10 disabled:opacity-30 active:scale-95 transition-all"><ChevronRight className="w-6 h-6 text-white" /></button>
+    <div className="h-screen w-screen overflow-hidden bg-[#0f172a] text-white font-sans selection:bg-blue-500/30 flex flex-col">
+      {/* Fixed Sticky Header - MOBILE OPTIMIZED (Apple Glass Effect) */}
+      <div className={`flex-none fixed md:relative z-50 transition-all duration-500 ease-out flex justify-between items-center shadow-2xl
+        ${isScrolled
+          ? 'top-4 md:top-0 left-[2.5%] right-[2.5%] w-[95%] md:w-full rounded-full md:rounded-none bg-[#0f172a]/80 backdrop-blur-xl border border-white/20 px-4 py-2 md:px-6 md:py-4 md:bg-[#0f172a]/95 md:border-b md:border-t-0 md:border-x-0 md:border-blue-500/30'
+          : 'top-0 left-0 w-full bg-[#0f172a]/95 backdrop-blur-md border-b border-blue-500/30 px-4 md:px-6 py-3 md:py-4 rounded-none'
+        }
+      `}>
+
+        {/* Brand / Title */}
+        <div className="flex flex-col">
+          <h1 className="font-bold text-lg md:text-xl flex items-center gap-2">
+            <span className="md:hidden text-blue-500"><Building2 className="w-5 h-5" /></span>
+            <span className="hidden md:inline">Demo Report</span>
+            <span className="md:hidden">House Vertical</span>
+          </h1>
+          <p className="text-[10px] md:text-xs text-blue-400 hidden md:block">Via Pacini 15, Milano</p>
         </div>
+
+        {/* Action Button - VISIBLE ON MOBILE NOW */}
+        <div className="flex-1 flex justify-end">
+          <button
+            onClick={onOpenSurvey}
+            className="group relative bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold py-2 px-4 md:px-6 rounded-full shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-xs md:text-sm flex items-center gap-2"
+          >
+            <span className="animate-pulse">✨</span>
+            <span>Valuta <span className="hidden md:inline">l'Idea</span></span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content Area with Fixed Sidebar */}
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Fixed Desktop Sidebar */}
+        <nav className="hidden lg:flex flex-col w-72 h-full border-r border-white/5 bg-[#0b1120] p-6 overflow-y-auto flex-none z-20">
+          <div className="flex items-center gap-3 mb-10 px-2 shrink-0">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <Building2 className="text-white w-6 h-6" />
+            </div>
+            <span className="font-bold text-xl tracking-tight">House Vertical</span>
+          </div>
+          <div className="space-y-2">
+            {sectionConfig.map((item) => {
+              const isActive = activeSection === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavClick(item.id)}
+                  className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 group ${isActive ? 'bg-gradient-to-r from-blue-600/20 to-transparent border-l-2 border-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.15)]' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
+                >
+                  <item.icon className={`w-5 h-5 transition-colors ${isActive ? item.color : 'text-gray-500 group-hover:text-gray-300'}`} />
+                  <span className="font-medium text-sm tracking-wide">{item.label}</span>
+                  {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)]"></div>}
+                </button>
+              )
+            })}
+          </div>
+        </nav>
+
+        {/* Scollable Main Content - NO SNAP CLASSES */}
+        <main
+          ref={containerRef}
+          onScroll={(e) => {
+            // Update Header State
+            const target = e.currentTarget;
+            setIsScrolled(target.scrollTop > 20);
+          }}
+          className="flex-1 h-full overflow-y-auto relative z-0 hide-scrollbar scroll-smooth"
+        >
+          {/* Mobile Safe Area Spacer Top */}
+          <div className="lg:hidden h-2 w-full" />
+
+          {/* Sections with Single-View Logic for Mobile */}
+          {sectionConfig.map((item) => {
+            const isActive = activeSection === item.id;
+            // Mobile: specific check using CSS classes to hide non-active sections
+            // Desktop: Always show (lg:block)
+            const mobileVisibilityClass = isActive ? 'flex' : 'hidden lg:flex';
+
+            return (
+              <div
+                key={item.id}
+                id={item.id}
+                ref={(el) => { sectionRefs.current[item.id] = el; }}
+                className={`${mobileVisibilityClass} flex-col min-h-[calc(100vh-80px)] md:min-h-screen w-full p-2 pt-24 md:p-4 lg:p-12 pb-32 lg:pb-24 ${['valuation', 'mortgage_calculator', 'market_comps', 'environment', 'connectivity', 'demographics', 'ai_verdict'].includes(item.id) ? 'bg-black/20' : ''}`}
+              >
+                <div className="flex-1 w-full flex items-center justify-center">
+                  {item.id === 'overview' && <OverviewSection data={data} />}
+                  {item.id === 'valuation' && <ValuationSection section={valuation} data={data} />}
+                  {item.id === 'investment' && <InvestmentSection section={investment} />}
+                  {item.id === 'mortgage_calculator' && <MortgageSection propertyValue={data.overview.estimatedValue} />}
+                  {item.id === 'insurance' && <InsuranceSection propertyValue={data.overview.estimatedValue} />}
+                  {item.id === 'market_comps' && <MarketSection section={market} data={data} />}
+                  {item.id === 'crime' && <CrimeSection section={crime} />}
+                  {item.id === 'environment' && <EnvironmentSection section={environment} />}
+                  {item.id === 'renovation_potential' && <RenovationSection section={renovation} currentValuation={overview?.estimatedValue || 0} />}
+                  {item.id === 'connectivity' && <ConnectivitySection section={connectivity} />}
+                  {item.id === 'amenities' && <AmenitiesSection section={amenities} />}
+                  {item.id === 'demographics' && <DemographicsSection section={demographics} />}
+                  {item.id === 'legal_tax' && <LegalSection section={legal} />}
+                  {item.id === 'ai_verdict' && <VerdictSection section={verdict} data={data} />}
+                </div>
+
+                <LegalDisclaimer />
+              </div>
+            );
+          })}
+        </main>
+      </div>
+
+      {/* Mobile Bottom Nav - COMPACT & GLASSY */}
+      <div className="lg:hidden fixed bottom-4 left-4 right-4 bg-[#0f111a]/80 backdrop-blur-xl border border-white/10 p-3 rounded-2xl shadow-2xl z-50 flex items-center justify-between gap-3 safe-area-bottom ring-1 ring-white/5">
+        <button
+          onClick={() => {
+            const prevIndex = currentSectionIndex - 1;
+            if (prevIndex >= 0) {
+              setActiveSection(sectionConfig[prevIndex].id);
+              // Scroll top of container to reset view
+              if (containerRef.current) containerRef.current.scrollTop = 0;
+            }
+          }}
+          disabled={currentSectionIndex === 0}
+          className="p-3 rounded-xl bg-white/5 border border-white/5 disabled:opacity-30 active:scale-95 transition-all text-white/80"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+
+        <div className="flex-1 flex flex-col items-center justify-center overflow-hidden">
+          <div className="flex items-center gap-2 mb-1">
+            {/* Dynamic Icon */}
+            {React.createElement(sectionConfig[currentSectionIndex].icon, { className: `w-3 h-3 ${sectionConfig[currentSectionIndex].color}` })}
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{currentSectionIndex + 1} / {sectionConfig.length}</span>
+          </div>
+          <h3 className="text-white font-bold text-sm truncate w-full text-center leading-tight">
+            {sectionConfig[currentSectionIndex].label}
+          </h3>
+          {/* Micro Progress Bar */}
+          <div className="w-16 h-0.5 bg-gray-800 rounded-full mt-2 overflow-hidden">
+            <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${((currentSectionIndex + 1) / sectionConfig.length) * 100}%` }}></div>
+          </div>
+        </div>
+
+        <button
+          onClick={() => {
+            const nextIndex = currentSectionIndex + 1;
+            if (nextIndex < sectionConfig.length) {
+              setActiveSection(sectionConfig[nextIndex].id);
+              if (containerRef.current) containerRef.current.scrollTop = 0;
+            }
+          }}
+          disabled={currentSectionIndex === sectionConfig.length - 1}
+          className="p-3 rounded-xl bg-white/5 border border-white/5 disabled:opacity-30 active:scale-95 transition-all text-white/80"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
       </div>
     </div>
   );

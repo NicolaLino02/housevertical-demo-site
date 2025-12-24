@@ -236,7 +236,22 @@ export interface ValuationData {
     analysis: string; // Deep dive for the modal
     negotiationPoints: string[]; // Specific points to use in negotiation
   };
-  comparables: { address: string; price: number; sqm: number; similarity: number; url?: string }[];
+  comparables: {
+    address: string;
+    price: number;
+    sqm: number;
+    similarity: number;
+    url?: string;
+    // Extended fields for demo
+    pricePerSqm?: number;
+    floor?: string;
+    bathrooms?: number;
+    rooms?: number;
+    elevator?: boolean;
+    description?: string;
+    analysis?: string;
+    distance?: string;
+  }[];
   marketTrend: { year: string; value: number; volume: number }[]; // Enhanced chart data
 }
 
@@ -297,5 +312,6 @@ export enum AppStep {
   ADDRESS_SEARCH,
   PROPERTY_FORM,
   LOADING,
-  REPORT
+  REPORT,
+  ABOUT
 }
